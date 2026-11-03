@@ -187,6 +187,15 @@ nav.tabs button[data-tab=cargar]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http
 .btn{border-radius:10px}
 .person-h h2{font-family:var(--f-body);text-transform:none;font-size:1.5rem}
 @media (max-width:440px){nav.tabs button{font-size:.8rem;padding:8px 2px 6px}}
+header.top .brand{display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:10px;row-gap:4px}
+header.top .brand small{grid-column:1;grid-row:1}
+header.top .brand h1{grid-column:1/-1;grid-row:2}
+.hbtn{grid-column:2;grid-row:1;font:600 .8rem var(--f-body);color:var(--band-ink);background:transparent;border:1px solid var(--band-muted);border-radius:999px;padding:5px 12px;min-height:32px;cursor:pointer}
+.hbtn:hover{background:rgba(255,255,255,.12)}
+.inst{flex-direction:row;align-items:flex-start;gap:14px;border-left:5px solid var(--cel)}
+.inst-ic{flex:none;width:44px;height:44px;border-radius:11px;background:var(--band) url("icon-192.png") center/cover no-repeat}
+.inst-tx{display:flex;flex-direction:column;gap:8px;min-width:0}
+.inst-h{font-size:1.05rem}
 </style><link id="fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Sans+Condensed:wght@600;700&amp;display=swap"><div id="app"><div class="wrap"><header class="top"><div class="brand"><h1>Grillas Paso San Sebastián</h1><small>Migraciones · Tierra del Fuego</small></div></header><div class="panel empty"><h2>Cargando grillas…</h2></div></div></div><script id="main">
 (function(){
 "use strict";
@@ -907,15 +916,37 @@ function onAdjChange(key){
   renderPreviewGrid();
 }
 
+/* ---------- instalar la app en el teléfono ---------- */
+var INST={ev:null,open:false,hide:false,done:false,
+  ios:/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),
+  android:/android/i.test(navigator.userAgent)};
+try{INST.hide=localStorage.getItem('grillas-inst')==='no';}catch(e){}
+function esApp(){try{return window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;}catch(e){return false;}}
+function installHtml(){
+  if(esApp()||INST.done) return '';
+  if(INST.hide&&!INST.open) return '';
+  var t, extra='';
+  if(INST.ev){t='Tenela en la pantalla de inicio, como cualquier app. Abre más rápido y funciona sin señal.';
+    extra='<button class="btn primary" id="b-inst" type="button">Instalar</button>';}
+  else if(INST.ios){t='En <b>Safari</b>, tocá el botón <b>Compartir</b> (el cuadrado con la flecha hacia arriba) y elegí <b>Agregar a inicio</b>. Si la abriste desde WhatsApp u otra app, primero abrila en Safari.';}
+  else if(INST.android){t='En <b>Chrome</b>, tocá el menú <b>⋮</b> (arriba a la derecha) y elegí <b>Instalar app</b> o <b>Agregar a la pantalla principal</b>.';}
+  else {t='En la computadora: en Chrome o Edge tocá el ícono de instalar en la barra de direcciones, o el menú <b>⋮ → Instalar</b>. En el celular, abrí esta misma dirección y vas a ver cómo instalarla.';}
+  return '<div class="panel inst"><div class="inst-ic" aria-hidden="true"></div><div class="inst-tx"><b class="inst-h">Instalá la app en tu teléfono</b><p class="note">'+t+'</p>'+
+    '<div class="actions">'+extra+'<button class="btn" id="b-inst-no" type="button">Ahora no</button></div></div></div>';
+}
+function pintarInstall(){var el=document.getElementById('inst-slot');if(el)el.innerHTML=installHtml();}
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();INST.ev=e;pintarInstall();});
+window.addEventListener('appinstalled',function(){INST.ev=null;INST.done=true;render();});
+
 /* ---------- render ---------- */
 function render(){
   aplicarPlanillas();
   var tabs=[['buscar','Buscar'],['grilla','Grilla'],['mensuales','Mensuales'],['cargar',(unlocked()?'':LOCK_SVG)+'Cargar']];
   var body=S.tab==='buscar'?viewBuscar():S.tab==='mensuales'?viewMensuales():(S.tab==='grilla'?viewGrilla():(unlocked()?lockBar()+viewCargar():viewLock()));
-  document.getElementById('app').innerHTML='<div class="wrap"><header class="top"><div class="brand"><h1>Grillas Paso San Sebastián</h1><small>Migraciones · Tierra del Fuego</small></div>'+
+  document.getElementById('app').innerHTML='<div class="wrap"><header class="top"><div class="brand"><h1>Grillas Paso San Sebastián</h1><small>Migraciones · Tierra del Fuego</small>'+(esApp()?'':'<button class="hbtn" id="b-inst-open" type="button">Instalar app</button>')+'</div>'+
     '<nav class="tabs" role="tablist">'+tabs.map(function(x){return '<button role="tab" data-tab="'+x[0]+'" aria-selected="'+(S.tab===x[0])+'">'+x[1]+'</button>';}).join('')+'</nav></header>'+
     (S.offline?'<div class="alert warn">Sin conexión: estás viendo la última grilla descargada.</div>':'')+(!apiLista()?'<div class="alert err">Falta configurar la URL del Apps Script en index.html.</div>':'')+
-    body+'</div>';
+    '<div id="inst-slot">'+installHtml()+'</div>'+body+'</div>';
   if(S.tab==='cargar'&&unlocked()) renderPreview();
   if(S.tab==='mensuales'&&S.men.ver){var g=getMen(S.men.ver);if(g)mostrarPdf(g);}
   if(S.tab==='cargar'&&!unlocked()){var f1=document.querySelector('#k-in,#k-new');if(f1)try{f1.focus();}catch(e){}}
@@ -957,6 +988,9 @@ var app=document.getElementById('app');
 app.addEventListener('click',function(e){
   var b=e.target.closest('button'); if(!b) return;
   if(b.dataset.tab){if(b.dataset.tab!==S.tab&&!S.men.busy){S.men.open=false;S.men.file=null;S.men.fileErr='';}S.tab=b.dataset.tab;S.msg=null;S.men.msg=null;S.men.confirm=null;LOCK.err='';LOCK.mode=null;render();return;}
+  if(b.id==='b-inst-open'){INST.open=true;pintarInstall();window.scrollTo({top:0,behavior:'smooth'});return;}
+  if(b.id==='b-inst-no'){INST.open=false;INST.hide=true;try{localStorage.setItem('grillas-inst','no');}catch(x){}pintarInstall();return;}
+  if(b.id==='b-inst'){var ev=INST.ev;if(!ev)return;ev.prompt();ev.userChoice.then(function(c){INST.ev=null;if(c&&c.outcome==='accepted')INST.done=true;render();}).catch(function(){});return;}
   if(b.id==='b-retry'){S.offline=false;S.lastErr='';render();cargar();return;}
   if(b.id==='b-lock'){setOk(null);LOCK.err='';LOCK.mode=null;S.msg=null;render();return;}
   if(b.id==='b-chg'){LOCK.mode=LOCK.mode==='change'?null:'change';LOCK.err='';render();return;}
