@@ -2,7 +2,7 @@
    Para la app usa "primero la red" (así siempre llegan las actualizaciones)
    y si no hay conexión muestra la última versión guardada.
    Las consultas a la planilla (Google) no pasan por acá. */
-var CACHE = 'grillas-v2';
+var CACHE = 'grillas-v3';
 var ARCHIVOS = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {
