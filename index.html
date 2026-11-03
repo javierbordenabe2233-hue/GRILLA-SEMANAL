@@ -36,7 +36,7 @@ button,input,select{font:inherit;color:inherit}
 .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1 1 180px}
 .lbl{font-family:var(--f-display);font-size:.85rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-input[type=text],input[type=search],input[type=date],select{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:11px 12px;min-height:46px}
+input[type=text],input[type=search],input[type=date],input[type=month],select{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:11px 12px;min-height:46px}
 input[type=search]{font-size:1.15rem}
 .btn{border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:10px 14px;cursor:pointer;font-weight:600;min-height:44px}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
@@ -109,6 +109,13 @@ h3.sec{font-family:var(--f-display);font-size:1.15rem;letter-spacing:.06em;text-
 .fri tr.adj td.nm::after{content:" · ajustado";font-weight:500;color:var(--warn);font-size:.8rem}
 td.adjc{background:var(--warn-bg)}
 .adj-tag{color:var(--warn);font-weight:600}
+.swap{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.swap .field{flex:1 1 200px}
+.swap-ico{font-size:1.4rem;color:var(--muted);padding-bottom:10px}
+.sw-list{display:flex;flex-direction:column;gap:6px}
+.sw-it{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--warn-bg);color:var(--ink);border-radius:8px;padding:8px 12px}
+.swc{background:var(--warn-bg)}
+@media (max-width:520px){.swap-ico{display:none}.swap .btn{width:100%}}
 form.lock{max-width:440px;width:100%;margin:0 auto}
 .lock h2{font-family:var(--f-display);font-size:1.4rem;text-transform:uppercase;letter-spacing:.04em;margin:0}
 .lock h2 svg{width:18px;height:18px}
@@ -118,6 +125,16 @@ form.lock{max-width:440px;width:100%;margin:0 auto}
 .saved .it{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--surface-2)}
 .saved .it .w{font-weight:600}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
+.drop{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;border:2px dashed var(--line);border-radius:10px;padding:22px 12px;cursor:pointer;background:var(--surface-2);overflow-wrap:anywhere}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.saved .it.cur{border-color:var(--accent)}
+.yr{font-family:var(--f-display);font-weight:700;letter-spacing:.08em;color:var(--muted);margin-top:4px}
+.pdfview{display:flex;flex-direction:column;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--surface-2);overflow:auto;max-height:80vh}
+.pdfview.zoom{align-items:flex-start}
+.pdfview.zoom canvas{max-width:none}
+nav.tabs button{white-space:nowrap}
+.pdfview canvas{max-width:100%;height:auto;flex:none;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+@media (max-width:440px){nav.tabs button{font-size:.9rem;letter-spacing:.02em;padding:10px 3px}nav.tabs button svg{margin-right:2px!important}}
 @media (prefers-reduced-motion: no-preference){.day{transition:box-shadow .15s}}
 </style><link id="fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&amp;family=Barlow:wght@400;500;600&amp;display=swap"><div id="app"><div class="wrap"><header class="top"><div class="brand"><h1>Grillas Paso San Sebastián</h1><small>Migraciones · Tierra del Fuego</small></div></header><div class="panel empty"><h2>Cargando grillas…</h2></div></div></div><script id="main">
 (function(){
@@ -125,8 +142,8 @@ form.lock{max-width:440px;width:100%;margin:0 auto}
 /* ==== CONFIGURACIÓN: pegá acá la URL de tu Apps Script (termina en /exec) ==== */
 var API_URL = 'PEGAR_ACA_LA_URL_DEL_APPS_SCRIPT';
 /* ============================================================================ */
-var CACHE_KEY = 'grillas-cache-v1';
-var DATA = {semanas:[], clave:null, planillas:{}};
+var CACHE_KEY = 'grillas-cache-v2';
+var DATA = {semanas:[], clave:null, planillas:{}, mensuales:[]};
 try{ var c = JSON.parse(localStorage.getItem(CACHE_KEY)||'null'); if(c && Array.isArray(c.semanas)) DATA = c; }catch(e){}
 function guardarCache(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(DATA)); }catch(e){} }
 API_URL=String(API_URL||'').trim();
@@ -216,17 +233,24 @@ function assignments(w){
   ['insp','sup'].forEach(function(role){
     var names=w[role]||[], rows=role==='insp'?t.rows:t.sup, ini=role==='insp'?t.ini:SUP_INI;
     ini.forEach(function(g){ g.k.forEach(function(k){
-      days[0].push({k:k,role:role,name:names[k-1]||'',sector:g.s,turno:g.tu===1?'1er turno':'2do turno',h:g.tu===1?VI1:VI2});
+      days[0].push({k:k,slot:role+':'+k,role:role,name:names[k-1]||'',sector:g.s,turno:g.tu===1?'1er turno':'2do turno',h:g.tu===1?VI1:VI2});
     });});
     rows.forEach(function(r){
       for(var j=0;j<6;j++) days[j+1].push({k:r.d[j],role:role,name:names[r.d[j]-1]||'',sector:r.s,turno:'Turno '+r.t.toLowerCase(),h:r.h});
-      days[7].push({k:r.d[6],role:role,name:names[r.d[6]-1]||'',sector:r.vs,turno:'Cierre de semana',h:r.vh});
+      days[7].push({k:r.d[6],slot:role+':'+r.d[6],role:role,name:names[r.d[6]-1]||'',sector:r.vs,turno:'Cierre de semana',h:r.vh});
     });
   });
   /* Ajustes manuales de los viernes (entra tarde, se va antes, cambio de sector). Clave: "día:rol:posición". */
   var aj=w.ajustes||{};
   [0,7].forEach(function(i){days[i].forEach(function(a){var x=aj[i+':'+a.role+':'+a.k];
     if(x){if(x.h)a.h=x.h;if(x.s)a.sector=x.s;a.adj=true;}});});
+  /* Intercambios de los viernes: dos lugares (slot) se cambian a quién tienen. */
+  (w.cambios||[]).forEach(function(c){
+    var A=null,B=null;(days[c.d]||[]).forEach(function(a){if(a.slot===c.x)A=a;if(a.slot===c.y)B=a;});
+    if(!A||!B||A===B) return;
+    var t={k:A.k,role:A.role,name:A.name};
+    A.k=B.k;A.role=B.role;A.name=B.name;B.k=t.k;B.role=t.role;B.name=t.name;A.sw=true;B.sw=true;
+  });
   return days;
 }
 /*TPL-END*/
@@ -263,9 +287,10 @@ function dayDate(w,i){return add(fromIso(w.desde),i);}
 function inRange(w,i){return iso(dayDate(w,i))<=w.hasta;}
 
 /* ---------- estado ---------- */
-var S={tab:'buscar',weekId:defaultWeek(),q:'',canSave:false,msg:null,form:null,confirmDel:null,saving:false};
+var S={tab:'buscar',weekId:defaultWeek(),q:'',canSave:false,msg:null,form:null,confirmDel:null,saving:false,
+  men:{open:false,mes:'',titulo:'',file:null,busy:false,msg:null,ver:null,confirm:null,fileErr:''}};
 try{var lq=localStorage.getItem('grillas-q'); if(lq) S.q=lq;}catch(e){}
-var ART=null;
+var ART=null; S.canSave=true;
 
 /* ---------- clave de carga ---------- */
 var LOCK={err:'',mode:null,busy:false};
@@ -273,8 +298,8 @@ S.okHash=null;
 try{S.okHash=sessionStorage.getItem('grillas-ok');}catch(e){}
 /* Después de guardar, la página se recarga: volvemos a la misma pestaña con el aviso. */
 try{var fl=JSON.parse(sessionStorage.getItem('grillas-flash')||'null');sessionStorage.removeItem('grillas-flash');
-  if(fl){S.tab=fl.tab||S.tab;if(fl.msg)S.msg={kind:'ok',text:fl.msg};if(fl.week&&getWeek(fl.week))S.weekId=fl.week;}}catch(e){}
-function unlocked(){return true;} /* sin clave: Cargar queda abierto */
+  if(fl){S.tab=fl.tab||S.tab;if(fl.msg)S.msg={kind:'ok',text:fl.msg};if(fl.tab==='mensuales'&&fl.msg)S.men.msg=S.msg;if(fl.week&&getWeek(fl.week))S.weekId=fl.week;if(fl.pdf&&fl.week&&getWeek(fl.week))S.pdfId=fl.week;}}catch(e){}
+function unlocked(){return !!S.okHash;} /* Cargar y subir PDFs: con la clave */
 function setOk(h){S.okHash=h;try{if(h)sessionStorage.setItem('grillas-ok',h);else sessionStorage.removeItem('grillas-ok');}catch(e){}}
 function hex(buf){return Array.prototype.map.call(new Uint8Array(buf),function(b){return ('0'+b.toString(16)).slice(-2);}).join('');}
 function sha(s){
@@ -297,110 +322,323 @@ function viewLock(){
     '<p class="note">Ingresá la clave para cargar o editar grillas.</p>'+msg+
     pwField('k-in','Clave','current-password')+'<button class="btn primary"'+(LOCK.busy?' disabled':'')+'>'+(LOCK.busy?'Verificando…':'Entrar')+'</button></form>';
 }
-function lockBar(){return '';}
+function lockBar(){return '<div class="lockbar"><span class="muted">Carga habilitada en este dispositivo.</span><button class="btn small" id="b-lock">Bloquear</button></div>';}
 
 function newForm(src){
   var t=src?src.tipo:'7', d=nextFriday();
   return {editId:src?src.id:null,tipo:t,desde:src?src.desde:iso(d),hasta:src?src.hasta:iso(add(d,7)),
-    insp:src?src.insp.slice():[],sup:src?src.sup.slice():[],ajustes:src&&src.ajustes?JSON.parse(JSON.stringify(src.ajustes)):{}};
+    insp:src?src.insp.slice():[],sup:src?src.sup.slice():[],ajustes:src&&src.ajustes?JSON.parse(JSON.stringify(src.ajustes)):{},cambios:src&&src.cambios?JSON.parse(JSON.stringify(src.cambios)):[],sel:{}};
 }
 
 
-/* ---------- PDF para la micro app "Grilla San Sebastián" ----------
-   Misma disposición que lee la micro app: secciones INSPECTORES / SUPERVISORES,
-   columnas SÁBADO..VIERNES, a la izquierda sector/turno/horario y a la derecha
-   el horario del viernes de cierre (con SALIDA/ENTRADA debajo).
-   Las fechas van en el nombre del archivo (DD-MM al DD-MM). */
+/* ---------- PDF con el formato de la planilla GRILLAS (columnas A a O) ----------
+   A–C: viernes de inicio (1er y 2do turno) · E: sector · F: turno · G: horario
+   H–N: sábado a viernes · O: horario del viernes de cierre.
+   Colores como en cada hoja de la planilla, según el tipo de grilla.
+   El texto va en posiciones que también lee la micro app "Grilla San Sebastián". */
 var JSPDF_URL='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-var jsPdfCarga=null;
+var jsPdfCarga=null, DL=null;
 function cargarJsPdf(){
   if(window.jspdf&&window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
   if(jsPdfCarga) return jsPdfCarga;
   jsPdfCarga=new Promise(function(ok,ko){var s=document.createElement('script');s.src=JSPDF_URL;
     s.onload=function(){ok(window.jspdf.jsPDF);};
-    s.onerror=function(){jsPdfCarga=null;ko(new Error('No pude descargar el generador de PDF. Revisá la conexión y probá de nuevo.'));};
+    s.onerror=function(){jsPdfCarga=null;ko(new Error('No pude cargar el generador de PDF. Revisá la conexión y probá de nuevo.'));};
     document.head.appendChild(s);});
   return jsPdfCarga;
 }
+var PC={Y:[255,229,153],G:[147,196,125],B:[164,194,244],P:[244,204,204],O:[255,153,0],O2:[230,145,56],Y2:[241,194,50],R:[224,102,102],T:[17,85,204],W:[255,255,255]};
+/* Diferencias de color de cada hoja (índice de fila de la grilla de inspectores). */
+var HOJA={'6':{fila:{4:'O2'},vie:{4:'B'}},'7':{},'7F':{vie:{4:'O'}},'7V':{fila:{2:'Y2',6:'R'},vie:{5:'B',6:'R'},colO:true},'8':{}};
+var NOMBRE_HOJA={'6':'6 INSPECTORES','7':'7 INSPECTORES','7F':'7 INSP. TURNO FIJO','7V':'7 INSPECTORES VERANO','8':'8 INSPECTORES'};
+function colorBase(s,t){if(t==='MEDIO'||t==='FIJO')return 'O';var m=t==='MAÑANA';return s==='SALIDA'?(m?'Y':'G'):(m?'B':'P');}
 function p2(n){return String(n).padStart(2,'0');}
-function pdfNombre(w){var a=fromIso(w.desde),b=fromIso(w.hasta);
-  return 'Grilla San Sebastian '+p2(a.getDate())+'-'+p2(a.getMonth()+1)+' al '+p2(b.getDate())+'-'+p2(b.getMonth()+1)+'.pdf';}
-function hTxt(h){var m=String(h).match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/);return m?m[1]+' A '+m[2]:String(h);}
-function pdfDoc(jsPDF,w){
-  var t=TPL_BY[w.tipo], aj=w.ajustes||{};
+function ddmm(d,sep){return p2(d.getDate())+(sep||'/')+p2(d.getMonth()+1);}
+function pdfNombre(w){return 'Grilla San Sebastian '+ddmm(fromIso(w.desde),'-')+' al '+ddmm(fromIso(w.hasta),'-')+'.pdf';}
+function deTxt(h){var m=String(h).match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/);return m?'DE '+m[1]+' A '+m[2]:String(h);}
+function cortoH(h){var m=String(h).match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/);return m?m[1]+'-'+m[2]:String(h);}
+
+function pdfGrilla(jsPDF,w){
+  var t=TPL_BY[w.tipo], hoja=HOJA[w.tipo]||{}, days=assignments(w);
   var doc=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
-  var W=doc.internal.pageSize.getWidth();
-  var X0=252, CW=70, XR=X0+7*CW+12; /* centro de cada día y columna del viernes de cierre */
-  var DN=['SÁBADO','DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES'];
-  doc.setTextColor(21,34,43);
-  doc.setFont('helvetica','bold');doc.setFontSize(15);
-  doc.text('GRILLA PASO SAN SEBASTIÁN',28,34);
-  doc.setFont('helvetica','normal');doc.setFontSize(10);
-  doc.text('Del viernes '+dm(fromIso(w.desde))+' al viernes '+dm(fromIso(w.hasta))+'  ·  '+(t?t.nombre:w.tipo),28,50);
-  var y=78;
-  function seccion(titulo,role,rows){
-    doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(29,90,120);
-    doc.text(titulo,28,y);y+=18;
-    doc.setFontSize(7.5);doc.setTextColor(90,106,116);
-    doc.text('SECTOR',28,y);doc.text('TURNO',86,y);doc.text('HORARIO',140,y);
-    for(var d=0;d<7;d++) doc.text(DN[d]+' '+dm(dayDate(w,d+1)),X0+d*CW,y,{align:'center'});
-    doc.text('VIE. CIERRE',XR,y,{align:'center'});
-    doc.setDrawColor(210,220,225);doc.setLineWidth(0.8);doc.line(24,y+5,W-24,y+5);
-    y+=20;
-    var names=w[role]||[];
-    rows.forEach(function(r,i){
-      var sal=r.s==='SALIDA';
-      doc.setFillColor(sal?247:220,sal?232:239,sal?215:228);doc.rect(24,y-11,58,16,'F');
-      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(sal?154:43,sal?85:106,sal?19:74);
-      doc.text(r.s,28,y);
-      doc.setTextColor(21,34,43);doc.setFont('helvetica','normal');
-      doc.text(r.t,86,y);doc.text(hTxt(r.h),140,y);
-      doc.setFont('helvetica','bold');doc.setFontSize(8.5);
-      for(var d=0;d<7;d++){var nm=names[r.d[d]-1]||''; if(nm) doc.text(String(nm).toUpperCase(),X0+d*CW,y,{align:'center'});}
-      var x=aj['7:'+role+':'+r.d[6]]||{}, fh=x.h||r.vh, fs=x.s||r.vs;
-      doc.setFont('helvetica','normal');doc.setFontSize(8);
-      doc.text(hTxt(fh),XR,y,{align:'center'});
-      doc.setFontSize(7);doc.setTextColor(90,106,116);doc.text(fs,XR,y+9,{align:'center'});
-      doc.setDrawColor(230,236,239);doc.setLineWidth(0.5);doc.line(24,y+14,W-24,y+14);
-      y+=26;
-    });
-    y+=10;
+  var PW=doc.internal.pageSize.getWidth(), M=20;
+  var PX=[90,90,90,21,90,90,103,90,90,90,90,90,90,90,93], tot=PX.reduce(function(a,b){return a+b;},0), k=(PW-2*M)/tot;
+  var X=[M]; PX.forEach(function(p,i){X.push(X[i]+p*k);});
+  var RH=15, TH=26;
+  function fill(c){var v=PC[c]||PC.W;doc.setFillColor(v[0],v[1],v[2]);}
+  /* celda (o celdas combinadas) de las columnas c1..c2, desde y, alto h */
+  function celda(c1,c2,y,h,color,txt,o){
+    o=o||{};
+    if(color&&color!=='W'){fill(color);doc.rect(X[c1],y,X[c2+1]-X[c1],h,'F');}
+    if(o.borde!==false){doc.setDrawColor(0,0,0);doc.setLineWidth(0.4);doc.rect(X[c1],y,X[c2+1]-X[c1],h,'S');}
+    if(txt){
+      doc.setFont('helvetica',o.bold?'bold':'normal');doc.setFontSize(o.size||7);
+      var tc=o.color||[0,0,0];doc.setTextColor(tc[0],tc[1],tc[2]);
+      doc.text(String(txt),(X[c1]+X[c2+1])/2,y+(o.dy!=null?o.dy:h/2+(o.size||7)*0.35),{align:'center'});
+    }
   }
-  seccion('INSPECTORES','insp',t.rows);
-  seccion('SUPERVISORES','sup',t.sup);
-  /* Página 2: viernes de inicio (no lo usa la micro app, es para leerlo) */
-  doc.addPage();
-  doc.setTextColor(21,34,43);doc.setFont('helvetica','bold');doc.setFontSize(13);
-  doc.text('Viernes '+dm(fromIso(w.desde))+' (inicio de semana)',28,40);
-  var dd=assignments(w)[0], yy=64;
-  [['1er turno',VI1],['2do turno',VI2]].forEach(function(tu){
-    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(29,90,120);
-    doc.text(tu[0].toUpperCase()+' · '+fmtH(tu[1]),28,yy);yy+=16;
-    doc.setFontSize(9);doc.setTextColor(21,34,43);
-    dd.filter(function(a){return a.turno===tu[0];}).forEach(function(a){
-      doc.setFont('helvetica','bold');doc.text(String(a.name||'-').toUpperCase(),40,yy);
-      doc.setFont('helvetica','normal');doc.text(roleName(a.role)+' · '+a.sector+' · '+fmtH(a.h)+(a.adj?' (ajustado)':''),180,yy);yy+=14;
+  /* texto invisible por fila: así la micro app asocia cada fila con su sector, turno y horario */
+  function oculto(c1,c2,y,txt,size){
+    doc.setFont('helvetica','normal');doc.setFontSize(size||6);
+    doc.text(String(txt),(X[c1]+X[c2+1])/2,y+RH/2+(size||6)*0.35,{align:'center',renderingMode:'invisible'});
+  }
+  /* agrupa filas consecutivas con la misma clave */
+  function grupos(n,clave){var g=[],i;for(i=0;i<n;i++){var kk=clave(i);if(g.length&&g[g.length-1].k===kk)g[g.length-1].n++;else g.push({k:kk,i:i,n:1});}return g;}
+
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(17,34,43);
+  doc.text('GRILLA PASO SAN SEBASTIÁN',M,26);
+  doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(70,80,90);
+  doc.text((NOMBRE_HOJA[w.tipo]||w.tipo)+'  ·  del viernes '+ddmm(fromIso(w.desde))+' (13:00) al viernes '+ddmm(fromIso(w.hasta))+' (13:00)',M,38);
+
+  var DN=['SABADO','DOMINGO','LUNES','MARTES','MIERCOLES','JUEVES','VIERNES'];
+  function seccion(y,titulo,role){
+    var rows=role==='insp'?t.rows:t.sup, ini=role==='insp'?t.ini:SUP_INI, names=w[role]||[];
+    var colF=function(i){var r=rows[i];return role==='insp'?((hoja.fila||{})[i]||colorBase(r.s,r.t)):colorBase(r.s,r.t);};
+    /* título */
+    celda(4,14,y,TH,'T',titulo,{size:13,color:[255,255,255],borde:false});
+    y+=TH;
+    /* encabezado de días */
+    for(var d=0;d<7;d++){
+      var c=7+d, c2=d===6?14:c;
+      doc.setFont('helvetica','normal');doc.setFontSize(5.5);doc.setTextColor(90,100,110);
+      doc.text(ddmm(dayDate(w,d+1)),(X[c]+X[c2+1])/2,y+6,{align:'center'});
+      doc.setFontSize(7);doc.setTextColor(0,0,0);
+      doc.text(DN[d],(X[c]+X[c2+1])/2,y+RH+3.5,{align:'center'});
+      doc.setDrawColor(0,0,0);doc.setLineWidth(0.6);doc.line(X[c],y+RH+6,X[c2+1],y+RH+6);
+    }
+    y+=RH+6;
+    var y0=y, n=rows.length;
+    /* E: sector */
+    grupos(n,function(i){return rows[i].s;}).forEach(function(g){
+      celda(4,4,y0+g.i*RH,g.n*RH,'W',g.k,{size:7});
+      for(var j=0;j<g.n;j++) oculto(4,4,y0+(g.i+j)*RH,g.k,7);
     });
-    yy+=10;
-  });
+    /* F: turno */
+    grupos(n,function(i){return rows[i].s+'|'+rows[i].t;}).forEach(function(g){
+      var r=rows[g.i], lab=(role==='insp'?'TURNO ':'')+r.t;
+      celda(5,5,y0+g.i*RH,g.n*RH,colorBase(r.s,r.t),lab,{size:5.5});
+      for(var j=0;j<g.n;j++) oculto(5,5,y0+(g.i+j)*RH,lab,5.5);
+    });
+    /* G: horario */
+    grupos(n,function(i){return rows[i].h+'|'+colF(i);}).forEach(function(g){
+      celda(6,6,y0+g.i*RH,g.n*RH,colF(g.i),deTxt(rows[g.i].h),{size:5.5});
+      for(var j=0;j<g.n;j++) oculto(6,6,y0+(g.i+j)*RH,deTxt(rows[g.i].h),5.5);
+    });
+    /* O: viernes de cierre (y color de la columna N del viernes) */
+    var gO=grupos(n,function(i){return rows[i].vh;}), colN={};
+    gO.forEach(function(g){
+      var r=rows[g.i], first=colF(g.i);
+      for(var j=0;j<g.n;j++) colN[g.i+j]=g.n>1?first:colorBase(rows[g.i+j].vs,rng(r.vh)[0]<540?'MAÑANA':'TARDE');
+    });
+    gO.forEach(function(g){
+      var r=rows[g.i], txt=deTxt(r.vh)+(role==='insp'&&hoja.colO&&r.vs==='SALIDA'?' SALIDA':'');
+      celda(14,14,y0+g.i*RH,g.n*RH,hoja.colO&&role==='insp'?colN[g.i]:'W',txt,{size:5.5});
+      for(var j=0;j<g.n;j++) oculto(14,14,y0+(g.i+j)*RH,txt,5.5);
+    });
+    /* H–N: nombres */
+    rows.forEach(function(r,i){
+      var yy=y0+i*RH;
+      for(var d=0;d<6;d++) celda(7+d,7+d,yy,RH,colF(i),names[r.d[d]-1]||'',{size:7});
+      var cN=(role==='insp'&&(hoja.vie||{})[i])||colN[i];
+      var a=null;days[7].forEach(function(z){if(z.slot===role+':'+r.d[6])a=z;});var nmN=a?a.name:(names[r.d[6]-1]||'');
+      if(a&&a.adj){
+        celda(13,13,yy,RH,cN,nmN,{size:6.5,dy:6.5});
+        doc.setFontSize(4.8);doc.text(cortoH(a.h)+(a.sector!==r.vs?' '+a.sector:''),(X[13]+X[14])/2,yy+12.8,{align:'center'});
+      } else celda(13,13,yy,RH,cN,nmN,{size:7});
+    });
+    /* A–C: viernes de inicio */
+    var fila=0, colIni={'1SALIDA':'Y','1ENTRADA':'B','2SALIDA':'G','2ENTRADA':'P'};
+    [1,2].forEach(function(tu){
+      var gs=ini.filter(function(g){return g.tu===tu;}), cnt=0;
+      gs.forEach(function(g){cnt+=g.k.length;});
+      if(!cnt) return;
+      celda(0,0,y0+fila*RH,cnt*RH,'W',tu===1?'1ER TURNO':'2DO TURNO',{size:7});
+      gs.forEach(function(g){
+        var cl=colIni[tu+g.s];
+        celda(1,1,y0+fila*RH,g.k.length*RH,cl,g.s,{size:7});
+        g.k.forEach(function(kk){
+          var a=null;days[0].forEach(function(z){if(z.slot===role+':'+kk)a=z;});
+          var nm=a?a.name:(names[kk-1]||'');
+          if(a&&a.adj){
+            celda(2,2,y0+fila*RH,RH,cl,nm,{size:6.5,dy:6.5});
+            doc.setFontSize(4.8);doc.text(cortoH(a.h)+(a.sector!==g.s?' '+a.sector:''),(X[2]+X[3])/2,y0+fila*RH+12.8,{align:'center'});
+          } else celda(2,2,y0+fila*RH,RH,cl,nm,{size:7});
+          fila++;
+        });
+      });
+    });
+    return y0+Math.max(n,fila)*RH;
+  }
+  var y=seccion(48,'INSPECTORES','insp');
+  seccion(y+RH*1.5,'SUPERVISORES','sup');
   return doc;
 }
-function compartirPdf(id){
+function descargarPdf(id){
   var w=getWeek(id); if(!w) return;
+  var name=pdfNombre(w);
   function entregar(jsPDF){
-    var name=pdfNombre(w), blob=pdfDoc(jsPDF,w).output('blob'), file=null;
-    try{file=new File([blob],name,{type:'application/pdf'});}catch(e){}
-    if(file&&navigator.canShare&&navigator.share&&navigator.canShare({files:[file]})){
-      navigator.share({files:[file],title:name}).catch(function(e){if(e&&e.name!=='AbortError')bajar(blob,name);});
-    } else bajar(blob,name);
+    var blob;
+    try{blob=pdfGrilla(jsPDF,w).output('blob');}catch(e){S.msg={kind:'err',text:'No se pudo armar el PDF ('+(e&&e.message||'error')+').'};render();return;}
+    if(DL){
+      DL.save({filename:name,data:blob}).then(function(){},function(e){
+        var c=e&&e.code; if(c==='declined') return;
+        S.msg={kind:'err',text:c==='rate_limited'?'Ya hay una descarga esperando confirmación.':'No se pudo descargar el PDF ('+(c||'error')+').'};render();
+      });
+    } else {
+      var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
+      setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},5000);
+    }
   }
-  function bajar(blob,name){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
-    setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},5000);}
-  if(window.jspdf&&window.jspdf.jsPDF) return entregar(window.jspdf.jsPDF); /* sincrónico: así el celular deja compartir */
+  if(window.jspdf&&window.jspdf.jsPDF) return entregar(window.jspdf.jsPDF);
   S.msg={kind:'ok',text:'Preparando el PDF…'};render();
   cargarJsPdf().then(function(j){S.msg=null;render();entregar(j);},function(e){S.msg={kind:'err',text:e.message};render();});
 }
 function pdfBtn(id,txt){return '<button class="btn small" data-pdf="'+esc(id)+'">'+(txt||'PDF')+'</button>';}
+
+
+/* ---------- Grillas mensuales: PDFs que se suben a medida que llegan ----------
+   El archivo queda en el almacenamiento del artefacto (assets) y la lista
+   (mes, título, id del archivo) va en los datos de la página. Subir y borrar:
+   solo quien puede editar la app. Ver y descargar: todos. */
+var MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+var PDFJS_URL='', pdfjsCarga=null;
+function mensuales(){return (DATA.mensuales||[]).slice().sort(function(a,b){return b.mes.localeCompare(a.mes)||String(b.subido).localeCompare(String(a.subido));});}
+function mesLabel(m){var p=String(m).split('-');return MESES[(+p[1])-1]+' '+p[0];}
+function mesActual(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function kb(n){return n>1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';}
+/* Adivina el mes por el nombre del archivo: "noviembre 2026", "11-2026", "2026-11"… */
+function mesDeNombre(n){
+  var s=norm(n).toLowerCase(), y=(String(n).match(/(20\d\d)/)||[])[1], m=null, i;
+  for(i=0;i<12;i++){var k=norm(MESES[i]).toLowerCase();if(s.indexOf(k)>=0||s.indexOf(k.slice(0,3)+' ')>=0){m=i+1;break;}}
+  if(!m){var x=String(n).match(/(?:^|\D)(0?[1-9]|1[0-2])[-_. \/](20\d\d)(?:\D|$)/)||String(n).match(/(20\d\d)[-_. \/](0?[1-9]|1[0-2])(?:\D|$)/);
+    if(x){if(x[1].length===4){y=x[1];m=+x[2];}else{m=+x[1];y=x[2];}}}
+  if(!m) return '';
+  if(!y){var d=new Date();y=d.getFullYear();if(m<d.getMonth()-5)y++;}
+  return y+'-'+String(m).padStart(2,'0');
+}
+function viewMensuales(){
+  var M=S.men, list=mensuales(), out='';
+  if(!unlocked()) out+='<p class="note">Para subir o borrar grillas mensuales, entrá con la clave en <b>Cargar</b>.</p>';
+  if(M.msg) out+='<div class="alert '+M.msg.kind+'">'+esc(M.msg.text)+'</div>';
+  if(unlocked()&&!M.open) out+='<div class="actions"><button class="btn primary" type="button" id="b-men-open">+ Subir grilla mensual</button></div>';
+  if(unlocked()&&M.open){
+    out+='<form class="panel" id="f-men" autocomplete="off"><h3 class="sec" style="margin:0">Subir grilla mensual</h3>'+
+      '<label class="drop" for="men-file"><input type="file" id="men-file" accept="application/pdf,.pdf" hidden>'+
+      (M.file?'<b>'+esc(M.file.name)+'</b><span class="muted">'+kb(M.file.size)+' · tocá para cambiarlo</span>':'<b>Elegí el PDF</b><span class="muted">o arrastralo acá</span>')+'</label>'+
+      (M.fileErr?'<div class="alert err">'+esc(M.fileErr)+'</div>':'')+
+      '<div class="row"><div class="field"><label class="lbl" for="men-mes">Mes</label><input type="month" id="men-mes" value="'+esc(M.mes||mesActual())+'"></div>'+
+      '<div class="field" style="flex:2 1 220px"><label class="lbl" for="men-tit">Título (opcional)</label><input type="text" id="men-tit" placeholder="Ej.: Grilla mensual San Sebastián" value="'+esc(M.titulo)+'"></div></div>'+
+      '<div class="actions"><button class="btn primary" id="b-men-up"'+(M.busy||!M.file?' disabled':'')+'>'+(M.busy?'Subiendo…':'Guardar grilla mensual')+'</button>'+
+      (M.file&&!M.busy?'<button class="btn" type="button" id="b-men-clr">Quitar archivo</button>':'')+(!M.busy?'<button class="btn" type="button" id="b-men-close">Cancelar</button>':'')+'</div></form>';
+  }
+  if(!list.length){
+    out+='<div class="panel empty"><h2>Todavía no hay grillas mensuales</h2><p class="note">'+(unlocked()?'Subí el PDF de cada mes a medida que lo tengas.':'Cuando se suba la grilla del mes la vas a ver acá.')+'</p></div>';
+    return out;
+  }
+  var y=null;
+  out+='<div class="panel"><h3 class="sec" style="margin:0">Grillas mensuales</h3><div class="saved">';
+  list.forEach(function(g){
+    var yr=g.mes.slice(0,4);
+    if(yr!==y){y=yr;out+='<div class="yr">'+esc(yr)+'</div>';}
+    var abierto=M.ver===g.id;
+    out+='<div class="it'+(g.mes===mesActual()?' cur':'')+'"><span><span class="w">'+esc(MESES[(+g.mes.slice(5))-1])+(g.mes===mesActual()?' <span class="badge-today">ESTE MES</span>':'')+'</span>'+
+      '<br><span class="note">'+esc(g.titulo||g.nombre)+' · '+kb(g.size||0)+'</span></span><span class="actions">'+
+      '<button class="btn small'+(abierto?' primary':'')+'" data-men-ver="'+esc(g.id)+'">'+(abierto?'Cerrar':'Ver')+'</button>'+
+      (abierto?'<button class="btn small" data-men-zoom="1">'+(M.zoom?'Achicar':'Ampliar')+'</button>':'')+
+      '<button class="btn small" data-men-dl="'+esc(g.id)+'">Descargar</button>'+
+      (unlocked()?(M.confirm===g.id?'<button class="btn small danger" data-men-del-ok="'+esc(g.id)+'">Confirmar borrado</button><button class="btn small" data-men-del-no="1">No</button>':'<button class="btn small" data-men-del="'+esc(g.id)+'">Borrar</button>'):'')+
+      '</span></div>'+(abierto?'<div class="pdfview'+(M.zoom?' zoom':'')+'" id="pdfview"><p class="note">Abriendo el PDF…</p></div>':'');
+  });
+  return out+'</div></div>';
+}
+function cargarPdfjs(){
+  if(window.pdfjsLib&&window.pdfjsWorker) return Promise.resolve(window.pdfjsLib);
+  if(pdfjsCarga) return pdfjsCarga;
+  function sc(src){return new Promise(function(ok,ko){var s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=function(){ko(new Error('No pude cargar el visor de PDF. Revisá la conexión.'));};document.head.appendChild(s);});}
+  pdfjsCarga=sc(PDFJS_URL+'pdf.worker.min.js').then(function(){return sc(PDFJS_URL+'pdf.min.js');}).then(function(){
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_URL+'pdf.worker.min.js';return window.pdfjsLib;});
+  pdfjsCarga.catch(function(){pdfjsCarga=null;});
+  return pdfjsCarga;
+}
+function getMen(id){return (DATA.mensuales||[]).filter(function(g){return g.id===id;})[0]||null;}
+var PDF_MEM={};
+function b64aBuf(b){var bin=atob(b),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u.buffer;}
+function bajarBytes(g){
+  if(PDF_MEM[g.id]) return Promise.resolve(PDF_MEM[g.id].slice(0));
+  if(!apiLista()) return Promise.reject(new Error('Falta configurar la URL del Apps Script.'));
+  return fetch(API_URL+'?pdf='+encodeURIComponent(g.id)).then(function(r){if(!r.ok)throw new Error('No se pudo abrir el archivo ('+r.status+').');return r.json();})
+    .then(function(d){if(!d||!d.ok||!d.b64)throw new Error(d&&d.error==='no-existe'?'El archivo ya no está disponible.':'No se pudo abrir el archivo.');
+      var buf=b64aBuf(d.b64);PDF_MEM[g.id]=buf;return buf.slice(0);},
+      function(e){throw new Error(e&&/archivo/.test(e.message)?e.message:'Sin conexión: no se pudo abrir el PDF.');});
+}
+function mostrarPdf(g){
+  var box=document.getElementById('pdfview'); if(!box) return;
+  Promise.all([cargarPdfjs(),bajarBytes(g)]).then(function(r){
+    return r[0].getDocument({data:new Uint8Array(r[1])}).promise;
+  }).then(function(pdf){
+    if(S.men.ver!==g.id) return;
+    box.innerHTML='';
+    var w=Math.max(280,box.clientWidth-18)*(S.men.zoom?2.4:1), dpr=Math.min(window.devicePixelRatio||1,2), chain=Promise.resolve();
+    for(var p=1;p<=pdf.numPages;p++)(function(p){chain=chain.then(function(){return pdf.getPage(p).then(function(pg){
+      var v0=pg.getViewport({scale:1}), sc=w/v0.width, v=pg.getViewport({scale:sc*dpr});
+      var c=document.createElement('canvas');c.width=v.width;c.height=v.height;c.style.width=Math.floor(v.width/dpr)+'px';
+      c.setAttribute('aria-label','Página '+p+' de '+pdf.numPages);box.appendChild(c);
+      return pg.render({canvasContext:c.getContext('2d'),viewport:v}).promise;});});})(p);
+    return chain;
+  }).catch(function(e){var b=document.getElementById('pdfview');if(b)b.innerHTML='<div class="alert err">'+esc(e&&e.message||'No se pudo mostrar el PDF.')+'</div>';});
+}
+function descargarMen(g){
+  var name=(g.nombre&&/\.pdf$/i.test(g.nombre))?g.nombre:'Grilla mensual '+mesLabel(g.mes)+'.pdf';
+  bajarBytes(g).then(function(buf){
+    var blob=new Blob([buf],{type:'application/pdf'});
+    if(DL) return DL.save({filename:name,data:blob}).catch(function(e){var c=e&&e.code;if(c==='declined')return;throw new Error('No se pudo descargar ('+(c||'error')+').');});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},5000);
+  }).catch(function(e){S.men.msg={kind:'err',text:e.message};render();});
+}
+function elegirArchivo(f){
+  S.men.fileErr='';
+  if(!f) return;
+  if(!/\.pdf$/i.test(f.name||'')&&f.type!=='application/pdf'){S.men.file=null;S.men.fileErr='Tiene que ser un archivo PDF.';render();return;}
+  if(f.size>15*1048576){S.men.file=null;S.men.fileErr='El PDF pesa más de 15 MB. Probá comprimirlo.';render();return;}
+  S.men.file=f; var m=mesDeNombre(f.name); if(m) S.men.mes=m;
+  S.men.msg=null; render();
+}
+function leerB64(f){return new Promise(function(ok,ko){var r=new FileReader();r.onload=function(){ok(String(r.result).split(',')[1]||'');};r.onerror=function(){ko(new Error('No pude leer el archivo.'));};r.readAsDataURL(f);});}
+function menError(r){
+  var e=r&&r.error;
+  if(e==='clave'){setOk(null);LOCK.err='La clave cambió o no es válida. Volvé a ingresarla en Cargar.';return 'La clave cambió o no es válida. Volvé a ingresarla en Cargar.';}
+  return e==='grande'?'El PDF es demasiado grande.':'No se pudo completar ('+(e||'error')+').';
+}
+function subirMensual(){
+  var M=S.men, f=M.file; if(!f||!unlocked()||M.busy) return;
+  if(!apiLista()){M.msg={kind:'err',text:'Falta configurar la URL del Apps Script en index.html.'};render();return;}
+  var mes=(document.getElementById('men-mes')||{}).value||M.mes||mesActual();
+  var tit=((document.getElementById('men-tit')||{}).value||'').trim();
+  if(!/^\d{4}-\d{2}$/.test(mes)){M.msg={kind:'err',text:'Elegí el mes.'};render();return;}
+  M.mes=mes;M.titulo=tit;M.busy=true;M.msg={kind:'ok',text:'Subiendo el PDF…'};render();
+  leerB64(f).then(function(b64){
+    return api({accion:'subirMensual',h:S.okHash,mes:mes,titulo:tit,nombre:f.name,b64:b64});
+  }).then(function(r){
+    M.busy=false;
+    if(!r||!r.ok){M.msg={kind:'err',text:menError(r)};render();return;}
+    DATA.mensuales=r.mensuales||DATA.mensuales;guardarCache();
+    M.file=null;M.titulo='';M.open=false;M.msg={kind:'ok',text:'Grilla mensual guardada: '+mesLabel(mes)+'.'};render();
+  },function(e){M.busy=false;M.msg={kind:'err',text:(e&&/archivo/.test(e.message))?e.message:'Sin conexión: no se pudo subir. Probá de nuevo.'};render();});
+}
+function borrarMensual(id){
+  var g=getMen(id); if(!g) return;
+  S.men.confirm=null;S.men.busy=true;S.men.msg={kind:'ok',text:'Borrando…'};render();
+  api({accion:'borrarMensual',h:S.okHash,id:id}).then(function(r){
+    S.men.busy=false;
+    if(!r||!r.ok){S.men.msg={kind:'err',text:menError(r)};render();return;}
+    DATA.mensuales=r.mensuales||[];guardarCache();delete PDF_MEM[id];if(S.men.ver===id)S.men.ver=null;
+    S.men.msg={kind:'ok',text:'Grilla mensual borrada: '+mesLabel(g.mes)+'.'};render();
+  },function(){S.men.busy=false;S.men.msg={kind:'err',text:'Sin conexión: no se pudo borrar.'};render();});
+}
+/* Junta todos los datos de la página (semanas, clave, mensuales) con los cambios. */
+function datos(cambios){var o={semanas:DATA.semanas,clave:DATA.clave,mensuales:DATA.mensuales||[]};for(var k in cambios)o[k]=cambios[k];return o;}
+
 /* ---------- vistas ---------- */
 function weekSelect(){
   var ws=sorted();
@@ -470,8 +708,9 @@ function gridHtml(w,hl){
     return '<tbody>'+rows.map(function(r){
       var c='<tr><td><span class="chip '+r.s+'">'+r.s+'</span></td><td>'+esc(r.t)+'</td><td>'+esc(fmtH(r.h))+'</td>';
       for(var j=0;j<6;j++) c+=nm(names[r.d[j]-1]);
-      var last=names[r.d[6]-1]||'', ca=null;
-      days[7].forEach(function(a){if(a.role===role&&a.k===r.d[6])ca=a;});
+      var ca=null;
+      days[7].forEach(function(a){if(a.slot===role+':'+r.d[6])ca=a;});
+      var last=ca?ca.name:(names[r.d[6]-1]||'');
       c+='<td class="nm'+(hq&&norm(last).indexOf(hq)!==-1?' hit':'')+(ca&&ca.adj?' adjc':'')+'">'+(esc(last)||'<span class="muted">—</span>')+'<span class="t">'+esc(fmtH(ca?ca.h:r.vh))+(ca&&ca.sector!==r.s?' · '+ca.sector:'')+(ca&&ca.adj?' · ajustado':'')+'</span></td>';
       return c+'</tr>';
     }).join('')+'</tbody>';
@@ -495,7 +734,7 @@ function viewGrilla(){
   var w=getWeek(S.weekId)||getWeek(defaultWeek());
   return '<div class="panel"><div class="row">'+weekSelect()+'</div>'+
     '<p class="note">'+esc(TPL_BY[w.tipo]?TPL_BY[w.tipo].nombre:'')+' · del viernes '+dm(fromIso(w.desde))+' (13:00) al viernes '+dm(fromIso(w.hasta))+' (13:00).</p></div>'+
-    '<div class="panel"><div class="actions">'+pdfBtn(w.id,'Compartir PDF para la micro app')+'</div>'+gridHtml(w,S.q)+'</div>';
+    '<div class="panel"><div class="actions">'+pdfBtn(w.id,'Descargar PDF de la grilla')+'</div>'+gridHtml(w,S.q)+'</div>';
 }
 
 function slotHint(t,role,k){
@@ -526,7 +765,7 @@ function viewCargar(){
   }
   var saved=sorted();
   return (S.msg?'<div class="alert '+S.msg.kind+'">'+esc(S.msg.text)+'</div>':'')+
-   (S.pdfId&&getWeek(S.pdfId)?'<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap"><span><b>PDF listo para la micro app</b><br><span class="note">'+esc(pdfNombre(getWeek(S.pdfId)))+'</span></span><span class="actions">'+pdfBtn(S.pdfId,'Compartir PDF')+'<button class="btn small" id="b-pdf-x">Cerrar</button></span></div>':'')+
+   (S.pdfId&&getWeek(S.pdfId)?'<div class="panel" style="flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap"><span><b>PDF de la grilla listo</b><br><span class="note">'+esc(pdfNombre(getWeek(S.pdfId)))+'</span></span><span class="actions">'+pdfBtn(S.pdfId,'Descargar PDF')+'<button class="btn small" id="b-pdf-x">Cerrar</button></span></div>':'')+
    '<div class="panel"><h3 class="sec" style="margin:0">'+(f.editId?'Editar grilla':'Nueva grilla')+'</h3>'+
    '<div class="field"><span class="lbl">Tipo de grilla</span>'+tipos+'</div>'+
    '<div class="row"><div class="field"><label class="lbl" for="f-desde">Desde (viernes)</label><input type="date" id="f-desde" value="'+esc(f.desde)+'"></div>'+
@@ -539,7 +778,7 @@ function viewCargar(){
    '<button class="btn" id="b-fill">Completar con los nombres de la planilla</button>'+
    (f.editId?'<button class="btn" id="b-cancel">Cancelar edición</button>':'<button class="btn" id="b-clear">Vaciar nombres</button>')+'</div></div>'+
    '<div class="panel"><h3 class="sec" style="margin:0">Vista previa</h3>'+
-   '<p class="note">Los dos viernes se pueden ajustar acá antes de guardar: cambiá el sector o el horario de quien entra más tarde o se va antes. Lo ajustado queda resaltado.</p>'+
+   '<p class="note">Para cambiar a alguien de lugar un viernes, elegí las dos personas y tocá <b>Intercambiar</b>: cada una pasa al sector y horario de la otra. En la grilla aparece cada nombre directamente en su lugar nuevo.</p>'+
    '<div id="fri-edit"></div><div id="preview"></div></div>'+
    '<div class="panel"><h3 class="sec" style="margin:0">Grillas guardadas</h3>'+
    (saved.length?'<div class="saved">'+saved.map(function(w){
@@ -562,28 +801,42 @@ function formWarnings(){
   if(dwEl) dwEl.innerHTML=dw.map(function(x){return '<div class="alert warn">'+esc(x)+'</div>';}).join('');
   if(fwEl) fwEl.innerHTML=out.map(function(x){return '<div class="alert warn">'+esc(x)+'</div>';}).join('');
 }
-function formWeek(noAdj){var f=S.form;return {tipo:f.tipo,desde:f.desde||iso(nextFriday()),hasta:f.hasta||iso(add(nextFriday(),7)),insp:f.insp.map(clean),sup:f.sup.map(clean),ajustes:noAdj?{}:f.ajustes};}
+function formWeek(noAdj){var f=S.form;return {tipo:f.tipo,desde:f.desde||iso(nextFriday()),hasta:f.hasta||iso(add(nextFriday(),7)),insp:f.insp.map(clean),sup:f.sup.map(clean),ajustes:noAdj?{}:f.ajustes,cambios:noAdj?[]:(f.cambios||[])};}
 function hParts(h){var m=String(h).match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/);return m?[m[1].padStart(5,'0'),m[2].padStart(5,'0')]:['',''];}
 function baseOf(i,role,k){var r=null;assignments(formWeek(true))[i].forEach(function(a){if(a.role===role&&a.k===k)r=a;});return r;}
 function friEditor(w,i){
-  var list=assignments(w)[i].slice();
-  list.sort(function(a,b){
+  var day=assignments(w)[i].slice(), f=S.form, sel=(f.sel&&f.sel[i])||{};
+  day.sort(function(a,b){
     if(i===0&&a.turno!==b.turno) return a.turno<b.turno?-1:1;
     if(a.role!==b.role) return a.role==='insp'?-1:1;
     if(a.sector!==b.sector) return a.sector==='SALIDA'?-1:1;
     return rng(a.h)[0]-rng(b.h)[0];
   });
   var title=i===0?'Viernes de inicio · '+dm(dayDate(w,0)):'Viernes de cierre · '+dm(dayDate(w,7));
-  return '<div class="fri"><h3 class="sec">'+title+'</h3><div class="tbl-wrap"><table><thead><tr><th>Nombre</th><th>'+(i===0?'Turno':'Horario base')+'</th><th>Sector</th><th>Entra</th><th>Sale</th><th></th></tr></thead><tbody>'+
-    list.map(function(a){
-      var key=i+':'+a.role+':'+a.k, p=hParts(a.h), base=baseOf(i,a.role,a.k);
-      return '<tr data-row="'+key+'" class="'+(a.adj?'adj':'')+'"><td class="nm">'+(esc(a.name)||'<span class="muted">Posición '+a.k+'</span>')+'<span class="t">'+roleName(a.role)+'</span></td>'+
-        '<td>'+(i===0?esc(a.turno):esc(fmtH(base.h)))+'</td>'+
-        '<td><select data-aj="'+key+'" data-f="s" aria-label="Sector"><option'+(a.sector==='SALIDA'?' selected':'')+'>SALIDA</option><option'+(a.sector==='ENTRADA'?' selected':'')+'>ENTRADA</option></select></td>'+
-        '<td><input type="time" data-aj="'+key+'" data-f="a" value="'+p[0]+'" aria-label="Entra"></td>'+
-        '<td><input type="time" data-aj="'+key+'" data-f="b" value="'+p[1]+'" aria-label="Sale"></td>'+
-        '<td class="rs">'+(a.adj?'<button class="btn small" data-reset="'+key+'">Restablecer</button>':'')+'</td></tr>';
-    }).join('')+'</tbody></table></div></div>';
+  var con=day.filter(function(a){return a.name;});
+  function opts(v){
+    var out='<option value="">Elegí…</option>', grp=null;
+    con.forEach(function(a){
+      var g=a.role==='insp'?'Inspectores':'Supervisores';
+      if(g!==grp){if(grp)out+='</optgroup>';out+='<optgroup label="'+g+'">';grp=g;}
+      out+='<option value="'+esc(a.slot)+'"'+(a.slot===v?' selected':'')+'>'+esc(a.name)+' — '+esc(a.sector)+' '+esc(fmtH(a.h))+'</option>';
+    });
+    return out+(grp?'</optgroup>':'');
+  }
+  var hechos=(f.cambios||[]).map(function(c,n){return {c:c,n:n};}).filter(function(o){return o.c.d===i;});
+  var w0={tipo:w.tipo,desde:w.desde,hasta:w.hasta,insp:w.insp,sup:w.sup,ajustes:w.ajustes,cambios:[]};
+  function quien(slot){var r='';assignments(w0)[i].forEach(function(a){if(a.slot===slot)r=a.name;});return r||'—';}
+  var out='<div class="fri"><h3 class="sec">'+title+'</h3>';
+  if(con.length<2) return out+'<p class="note">Completá los nombres para poder intercambiar lugares.</p></div>';
+  out+='<div class="swap"><div class="field"><label class="lbl" for="sw-a-'+i+'">Persona 1</label><select id="sw-a-'+i+'" data-sw="'+i+'" data-f="a">'+opts(sel.a)+'</select></div>'+
+    '<span class="swap-ico" aria-hidden="true">⇄</span>'+
+    '<div class="field"><label class="lbl" for="sw-b-'+i+'">Persona 2</label><select id="sw-b-'+i+'" data-sw="'+i+'" data-f="b">'+opts(sel.b)+'</select></div>'+
+    '<button class="btn primary" type="button" data-sw-go="'+i+'"'+(sel.a&&sel.b?'':' disabled')+'>Intercambiar</button></div>'+
+    (sel.err?'<div class="alert warn">'+esc(sel.err)+'</div>':'');
+  if(hechos.length) out+='<div class="sw-list">'+hechos.map(function(o){
+    return '<div class="sw-it"><span><b>'+esc(quien(o.c.x))+'</b> ⇄ <b>'+esc(quien(o.c.y))+'</b></span><button class="btn small" type="button" data-sw-undo="'+o.n+'">Deshacer</button></div>';
+  }).join('')+'</div>';
+  return out+'</div>';
 }
 function renderPreviewGrid(){var el=document.getElementById('preview');if(el)el.innerHTML=gridHtml(formWeek(),'');}
 function renderPreview(){
@@ -607,32 +860,34 @@ function onAdjChange(key){
 /* ---------- render ---------- */
 function render(){
   aplicarPlanillas();
-  var tabs=[['buscar','Buscar'],['grilla','Grilla'],['cargar',(unlocked()?'':LOCK_SVG)+'Cargar']];
-  var body=S.tab==='buscar'?viewBuscar():(S.tab==='grilla'?viewGrilla():(unlocked()?lockBar()+viewCargar():viewLock()));
+  var tabs=[['buscar','Buscar'],['grilla','Grilla'],['mensuales','Mensuales'],['cargar',(unlocked()?'':LOCK_SVG)+'Cargar']];
+  var body=S.tab==='buscar'?viewBuscar():S.tab==='mensuales'?viewMensuales():(S.tab==='grilla'?viewGrilla():(unlocked()?lockBar()+viewCargar():viewLock()));
   document.getElementById('app').innerHTML='<div class="wrap"><header class="top"><div class="brand"><h1>Grillas Paso San Sebastián</h1><small>Migraciones · Tierra del Fuego</small></div>'+
     '<nav class="tabs" role="tablist">'+tabs.map(function(x){return '<button role="tab" data-tab="'+x[0]+'" aria-selected="'+(S.tab===x[0])+'">'+x[1]+'</button>';}).join('')+'</nav></header>'+
     (S.offline?'<div class="alert warn">Sin conexión: estás viendo la última grilla descargada.</div>':'')+(!apiLista()?'<div class="alert err">Falta configurar la URL del Apps Script en index.html.</div>':'')+
     body+'</div>';
   if(S.tab==='cargar'&&unlocked()) renderPreview();
+  if(S.tab==='mensuales'&&S.men.ver){var g=getMen(S.men.ver);if(g)mostrarPdf(g);}
   if(S.tab==='cargar'&&!unlocked()){var f1=document.querySelector('#k-in,#k-new');if(f1)try{f1.focus();}catch(e){}}
 }
 
-/* ---------- guardar (en la planilla, vía Apps Script) ---------- */
+/* ---------- guardar en la planilla ---------- */
 function publish(next,okText){
   if(!apiLista()){S.msg={kind:'err',text:'Falta configurar la URL del Apps Script en index.html.'};render();return;}
+  if(!S.okHash){LOCK.err='Ingresá la clave para guardar.';render();return;}
   S.saving=true;S.msg={kind:'ok',text:'Guardando…'};render();
   api({accion:'guardar',h:S.okHash,semanas:next.semanas}).then(function(r){
     S.saving=false;
     if(!r||!r.ok){
       if(r&&r.error==='clave'){setOk(null);S.msg=null;LOCK.err='La clave cambió o no es válida. Volvé a ingresarla.';}
       else S.msg={kind:'err',text:'No se pudo guardar ('+((r&&r.error)||'error')+'). Probá de nuevo.'};
-      render();return;
+      S.flashPdf=false;render();return;
     }
     DATA.semanas=Array.isArray(r.semanas)?r.semanas:next.semanas;guardarCache();S.offline=false;
-    S.pdfId=(S.lastSavedId&&getWeek(S.lastSavedId))?S.lastSavedId:null;cargarJsPdf().catch(function(){});
+    if(S.flashPdf&&getWeek(S.weekId)){S.pdfId=S.weekId;S.form=null;}S.flashPdf=false;
     if(!getWeek(S.weekId)) S.weekId=defaultWeek();
     S.msg={kind:'ok',text:okText};render();
-  },function(){S.saving=false;S.msg={kind:'err',text:'Sin conexión: no se pudo guardar. Probá de nuevo.'};render();});
+  },function(){S.saving=false;S.flashPdf=false;S.msg={kind:'err',text:'Sin conexión: no se pudo guardar. Probá de nuevo.'};render();});
 }
 function saveForm(){
   var f=S.form, t=TPL_BY[f.tipo], insp=[], sup=[], k;
@@ -642,9 +897,9 @@ function saveForm(){
   if(!f.desde||!f.hasta){S.msg={kind:'err',text:'Completá las fechas desde y hasta.'};render();return;}
   if(f.hasta<f.desde){S.msg={kind:'err',text:'La fecha “hasta” es anterior a “desde”.'};render();return;}
   if(miss){S.msg={kind:'err',text:'Faltan '+miss+' nombre'+(miss>1?'s':'')+'. Completá todas las posiciones.'};render();return;}
-  var w={id:f.editId||('g'+Date.now().toString(36)),tipo:f.tipo,desde:f.desde,hasta:f.hasta,insp:insp,sup:sup,ajustes:f.ajustes||{},guardado:new Date().toISOString()};
-  var next={semanas:DATA.semanas.filter(function(x){return x.id!==w.id;}).concat([w]).sort(function(a,b){return b.desde.localeCompare(a.desde);}),clave:DATA.clave};
-  S.weekId=w.id;S.lastSavedId=w.id;
+  var w={id:f.editId||('g'+Date.now().toString(36)),tipo:f.tipo,desde:f.desde,hasta:f.hasta,insp:insp,sup:sup,ajustes:f.ajustes||{},cambios:f.cambios||[],guardado:new Date().toISOString()};
+  var next=datos({semanas:DATA.semanas.filter(function(x){return x.id!==w.id;}).concat([w]).sort(function(a,b){return b.desde.localeCompare(a.desde);})});
+  S.weekId=w.id;S.flashPdf=true;S.pdfId=null;
   publish(next,'Grilla guardada: '+weekLabel(w)+'.');
 }
 
@@ -652,30 +907,50 @@ function saveForm(){
 var app=document.getElementById('app');
 app.addEventListener('click',function(e){
   var b=e.target.closest('button'); if(!b) return;
-  if(b.dataset.tab){S.tab=b.dataset.tab;S.msg=null;LOCK.err='';LOCK.mode=null;render();return;}
-  if(b.dataset.pdf){compartirPdf(b.dataset.pdf);return;}
-  if(b.id==='b-pdf-x'){S.pdfId=null;render();return;}
+  if(b.dataset.tab){if(b.dataset.tab!==S.tab&&!S.men.busy){S.men.open=false;S.men.file=null;S.men.fileErr='';}S.tab=b.dataset.tab;S.msg=null;S.men.msg=null;S.men.confirm=null;LOCK.err='';LOCK.mode=null;render();return;}
   if(b.id==='b-retry'){S.offline=false;S.lastErr='';render();cargar();return;}
   if(b.id==='b-lock'){setOk(null);LOCK.err='';LOCK.mode=null;S.msg=null;render();return;}
   if(b.id==='b-chg'){LOCK.mode=LOCK.mode==='change'?null:'change';LOCK.err='';render();return;}
+  if(b.dataset.pdf){descargarPdf(b.dataset.pdf);return;}
+  if(b.id==='b-men-up'){e.preventDefault();subirMensual();return;}
+  if(b.id==='b-men-open'){S.men.open=true;S.men.msg=null;render();var fm=document.getElementById('f-men');if(fm)fm.scrollIntoView({block:'nearest'});return;}
+  if(b.id==='b-men-close'){S.men.open=false;S.men.file=null;S.men.fileErr='';S.men.titulo='';render();return;}
+  if(b.id==='b-men-clr'){S.men.file=null;S.men.fileErr='';render();return;}
+  if(b.dataset.menVer){S.men.ver=S.men.ver===b.dataset.menVer?null:b.dataset.menVer;S.men.zoom=false;render();return;}
+  if(b.dataset.menZoom){S.men.zoom=!S.men.zoom;render();return;}
+  if(b.dataset.menDl){var g=getMen(b.dataset.menDl);if(g)descargarMen(g);return;}
+  if(b.dataset.menDel){S.men.confirm=b.dataset.menDel;render();return;}
+  if(b.dataset.menDelNo){S.men.confirm=null;render();return;}
+  if(b.dataset.menDelOk){borrarMensual(b.dataset.menDelOk);return;}
+  if(b.id==='b-pdf-x'){S.pdfId=null;render();return;}
   if(b.id==='b-save'){saveForm();return;}
   if(b.id==='b-fill'){var t=TPL_BY[S.form.tipo];S.form.insp=t.planilla.insp.slice();S.form.sup=t.planilla.sup.slice();render();return;}
-  if(b.id==='b-clear'){S.form.insp=[];S.form.sup=[];S.form.ajustes={};render();return;}
+  if(b.id==='b-clear'){S.form.insp=[];S.form.sup=[];S.form.ajustes={};S.form.cambios=[];render();return;}
   if(b.dataset.reset){var key=b.dataset.reset;delete S.form.ajustes[key];renderPreview();return;}
+  if(b.dataset.swGo){var d=+b.dataset.swGo, s=(S.form.sel||{})[d]||{};
+    if(!s.a||!s.b) return;
+    if(s.a===s.b){s.err='Elegí dos personas distintas.';renderPreview();return;}
+    if(s.a.split(':')[0]!==s.b.split(':')[0]){s.err='Solo se puede intercambiar inspector con inspector, o supervisor con supervisor.';renderPreview();return;}
+    S.form.cambios=(S.form.cambios||[]).concat([{d:d,x:s.a,y:s.b}]);S.form.sel[d]={};renderPreview();return;}
+  if(b.dataset.swUndo!=null){var n=+b.dataset.swUndo;S.form.cambios=(S.form.cambios||[]).filter(function(c,k){return k!==n;});renderPreview();return;}
   if(b.id==='b-cancel'){S.form=newForm(null);S.msg=null;render();return;}
   if(b.dataset.edit){var w=getWeek(b.dataset.edit);if(w){S.form=newForm(w);S.msg=null;render();window.scrollTo({top:0});}return;}
   if(b.dataset.del){S.confirmDel=b.dataset.del;render();return;}
   if(b.dataset.delNo){S.confirmDel=null;render();return;}
   if(b.dataset.delOk){var id=b.dataset.delOk, old=getWeek(id);S.confirmDel=null;
-    var next={semanas:DATA.semanas.filter(function(x){return x.id!==id;}),clave:DATA.clave};
+    var next=datos({semanas:DATA.semanas.filter(function(x){return x.id!==id;})});
     if(S.weekId===id) S.weekId=null;
-    S.lastSavedId=null;
+    if(S.pdfId===id) S.pdfId=null;
     publish(next,'Grilla borrada'+(old?': '+weekLabel(old):'')+'.');
     return;}
 });
+app.addEventListener('dragover',function(e){var d=e.target.closest&&e.target.closest('.drop');if(d){e.preventDefault();d.classList.add('over');}});
+app.addEventListener('dragleave',function(e){var d=e.target.closest&&e.target.closest('.drop');if(d)d.classList.remove('over');});
+app.addEventListener('drop',function(e){var d=e.target.closest&&e.target.closest('.drop');if(!d)return;e.preventDefault();elegirArchivo(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]);});
 app.addEventListener('submit',function(e){
   e.preventDefault();
   var id=e.target.id;
+  if(id==='f-men'){subirMensual();return;}
   function v(x){var el=document.getElementById(x);return el?el.value.trim():'';}
   function fail(t){LOCK.err=t;LOCK.busy=false;render();}
   function cryptoFail(){fail('Este navegador no permite verificar la clave. Probá desde Chrome o Safari actualizados.');}
@@ -711,13 +986,17 @@ app.addEventListener('input',function(e){
   var el=e.target;
   if(el.id==='q'){S.q=el.value;try{localStorage.setItem('grillas-q',S.q);}catch(x){}
     var w=getWeek(S.weekId)||getWeek(defaultWeek());var r=document.getElementById('results');if(r&&w)r.innerHTML=resultsHtml(w);return;}
+  if(el.id==='men-tit'){S.men.titulo=el.value;return;}
   if(el.dataset.role){S.form[el.dataset.role][(+el.dataset.k)-1]=el.value;renderPreview();return;}
 });
 app.addEventListener('change',function(e){
   var el=e.target;
+  if(el.id==='men-file'){elegirArchivo(el.files&&el.files[0]);return;}
+  if(el.id==='men-mes'){S.men.mes=el.value;return;}
   if(el.id==='sel-week'){S.weekId=el.value;render();var q=document.getElementById('q');if(q&&S.tab==='buscar'){}return;}
-  if(el.name==='tipo'){S.form.tipo=el.value;S.form.ajustes={};render();return;}
+  if(el.name==='tipo'){S.form.tipo=el.value;S.form.ajustes={};S.form.cambios=[];S.form.sel={};render();return;}
   if(el.dataset.aj){onAdjChange(el.dataset.aj);return;}
+  if(el.dataset.sw!=null){var d=+el.dataset.sw;S.form.sel=S.form.sel||{};var s=S.form.sel[d]=S.form.sel[d]||{};s[el.dataset.f]=el.value;s.err='';renderPreview();return;}
   if(el.id==='f-desde'){S.form.desde=el.value;if(el.value){S.form.hasta=iso(add(fromIso(el.value),7));var h=document.getElementById('f-hasta');if(h)h.value=S.form.hasta;}renderPreview();return;}
   if(el.id==='f-hasta'){S.form.hasta=el.value;renderPreview();return;}
 });
@@ -725,23 +1004,22 @@ app.addEventListener('change',function(e){
 if(!S.weekId) S.weekId=defaultWeek();
 render();
 
-/* Cualquiera con la clave puede cargar; buscar y ver es libre. */
-S.canSave=true;
 function cargar(){
   if(!apiLista()) return;
   fetch(API_URL+'?t='+Date.now()).then(function(r){if(!r.ok)throw new Error('respuesta '+r.status);return r.text();}).then(function(tx){try{return JSON.parse(tx);}catch(e){throw new Error('la URL no devuelve datos (¿acceso Cualquier usuario?)');}}).then(function(d){
     if(!d||!Array.isArray(d.semanas)) throw new Error('formato');
-    DATA={semanas:d.semanas,clave:d.clave||null,planillas:d.planillas||{}};guardarCache();
+    DATA={semanas:d.semanas,clave:d.clave||null,planillas:d.planillas||{},mensuales:Array.isArray(d.mensuales)?d.mensuales:[]};guardarCache();
     S.offline=false;
     if(!getWeek(S.weekId)) S.weekId=defaultWeek();
-    var a=document.activeElement, typing=a&&a.tagName==='INPUT'&&a.type!=='button';
-    if(!typing||S.tab!=='buscar') render();
-    else {var w=getWeek(S.weekId);var res=document.getElementById('results');if(res&&w)res.innerHTML=resultsHtml(w);}
+    var a=document.activeElement, typing=a&&(a.tagName==='INPUT'||a.tagName==='SELECT')&&a.type!=='button';
+    if(S.men.busy||S.saving) return;
+    if(!typing&&!(S.tab==='mensuales'&&S.men.open)) render();
+    else if(S.tab==='buscar'){var w=getWeek(S.weekId);var res=document.getElementById('results');if(res&&w)res.innerHTML=resultsHtml(w);}
   }).catch(function(e){S.offline=true;S.lastErr=(e&&e.message)||'';render();});
 }
 cargar();
 setTimeout(function(){cargarJsPdf().catch(function(){});},1500);
-document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&!S.saving&&S.tab!=='cargar')cargar();});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&!S.saving&&!S.men.busy&&S.tab!=='cargar')cargar();});
 if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
 })();
 </script></body></html>
