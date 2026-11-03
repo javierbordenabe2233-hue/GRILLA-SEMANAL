@@ -10,7 +10,7 @@
  *   en PLANILLAS: así no quedan escritos en GitHub.
  * - Las grillas mensuales (PDF) quedan guardadas en tu Google Drive, en la
  *   carpeta "Grillas mensuales - App", y la lista en la pestaña APP_MENSUALES.
- *   Ver y descargar: cualquiera con la app. Subir y borrar: con la clave.
+ *   Acceso libre: cualquiera con la app puede ver, subir y borrar.
  */
 
 var HOJA = 'APP_DATOS';
@@ -62,7 +62,8 @@ function doPost(e) {
     var b = JSON.parse(e.postData.contents);
     prepararClave_();
     var props = PropertiesService.getScriptProperties();
-    if (!b || b.h !== props.getProperty('HASH')) return salida_({ ok: false, error: 'clave' });
+    if (!b) return salida_({ ok: false, error: 'datos' });
+    // Sin clave: cualquiera con la app puede cargar semanas y subir/borrar PDFs.
 
     if (b.accion === 'verificar') return salida_({ ok: true });
 

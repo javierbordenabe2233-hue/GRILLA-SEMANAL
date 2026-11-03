@@ -299,7 +299,7 @@ try{S.okHash=sessionStorage.getItem('grillas-ok');}catch(e){}
 /* Después de guardar, la página se recarga: volvemos a la misma pestaña con el aviso. */
 try{var fl=JSON.parse(sessionStorage.getItem('grillas-flash')||'null');sessionStorage.removeItem('grillas-flash');
   if(fl){S.tab=fl.tab||S.tab;if(fl.msg)S.msg={kind:'ok',text:fl.msg};if(fl.tab==='mensuales'&&fl.msg)S.men.msg=S.msg;if(fl.week&&getWeek(fl.week))S.weekId=fl.week;if(fl.pdf&&fl.week&&getWeek(fl.week))S.pdfId=fl.week;}}catch(e){}
-function unlocked(){return !!S.okHash;} /* Cargar y subir PDFs: con la clave */
+function unlocked(){return true;} /* Cargar y Mensuales: acceso libre, sin clave */
 function setOk(h){S.okHash=h;try{if(h)sessionStorage.setItem('grillas-ok',h);else sessionStorage.removeItem('grillas-ok');}catch(e){}}
 function hex(buf){return Array.prototype.map.call(new Uint8Array(buf),function(b){return ('0'+b.toString(16)).slice(-2);}).join('');}
 function sha(s){
@@ -322,7 +322,7 @@ function viewLock(){
     '<p class="note">Ingresá la clave para cargar o editar grillas.</p>'+msg+
     pwField('k-in','Clave','current-password')+'<button class="btn primary"'+(LOCK.busy?' disabled':'')+'>'+(LOCK.busy?'Verificando…':'Entrar')+'</button></form>';
 }
-function lockBar(){return '<div class="lockbar"><span class="muted">Carga habilitada en este dispositivo.</span><button class="btn small" id="b-lock">Bloquear</button></div>';}
+function lockBar(){return '';}
 
 function newForm(src){
   var t=src?src.tipo:'7', d=nextFriday();
@@ -518,7 +518,6 @@ function mesDeNombre(n){
 }
 function viewMensuales(){
   var M=S.men, list=mensuales(), out='';
-  if(!unlocked()) out+='<p class="note">Para subir o borrar grillas mensuales, entrá con la clave en <b>Cargar</b>.</p>';
   if(M.msg) out+='<div class="alert '+M.msg.kind+'">'+esc(M.msg.text)+'</div>';
   if(unlocked()&&!M.open) out+='<div class="actions"><button class="btn primary" type="button" id="b-men-open">+ Subir grilla mensual</button></div>';
   if(unlocked()&&M.open){
@@ -874,7 +873,6 @@ function render(){
 /* ---------- guardar en la planilla ---------- */
 function publish(next,okText){
   if(!apiLista()){S.msg={kind:'err',text:'Falta configurar la URL del Apps Script en index.html.'};render();return;}
-  if(!S.okHash){LOCK.err='Ingresá la clave para guardar.';render();return;}
   S.saving=true;S.msg={kind:'ok',text:'Guardando…'};render();
   api({accion:'guardar',h:S.okHash,semanas:next.semanas}).then(function(r){
     S.saving=false;

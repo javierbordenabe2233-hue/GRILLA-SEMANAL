@@ -7,8 +7,8 @@ en tu Google Drive, así que todo lo que se sube queda guardado y lo ve cualquie
 ## Pestañas
 - **Buscar**: escribís un apellido y ves cada día: sector, horario y con quién te toca.
 - **Grilla**: la semana completa y el botón para descargar el PDF.
-- **Mensuales**: los PDF de cada mes. Ver y descargar: todos. Subir y borrar: con la clave.
-- **Cargar**: nueva semana, editar, intercambios de los viernes (con la clave).
+- **Mensuales**: los PDF de cada mes. Cualquiera puede ver, descargar, subir y borrar.
+- **Cargar**: nueva semana, editar, intercambios de los viernes. Acceso libre, sin clave.
 
 ## Puesta en marcha (una sola vez)
 1. Abrí la planilla **GRILLAS** → **Extensiones → Apps Script**.
