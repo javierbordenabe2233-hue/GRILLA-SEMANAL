@@ -168,12 +168,23 @@ function carpeta_() {
   return c;
 }
 
+/* Google Sheets convierte "2026-11" en una fecha al guardarlo: acá se vuelve a "AAAA-MM". */
+function mesTexto_(v) {
+  if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v)) {
+    return Utilities.formatDate(v, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'yyyy-MM');
+  }
+  var m = String(v).trim().match(/^(\d{4})-(\d{1,2})$/);
+  return m ? m[1] + '-' + ('0' + m[2]).slice(-2) : '';
+}
+
 function filasMen_() {
   var sh = hojaMen_(), n = sh.getLastRow() - 1;
   if (n < 1) return [];
   return sh.getRange(2, 1, n, COL_MEN.length).getValues().map(function (r, i) {
-    return { fila: i + 2, id: String(r[0]), mes: String(r[1]), titulo: String(r[2]), nombre: String(r[3]),
-      size: Number(r[4]) || 0, subido: String(r[5]), drive: String(r[6]) };
+    var sub = r[5];
+    if (Object.prototype.toString.call(sub) === '[object Date]') sub = sub.toISOString();
+    return { fila: i + 2, id: String(r[0]), mes: mesTexto_(r[1]), titulo: String(r[2]), nombre: String(r[3]),
+      size: Number(r[4]) || 0, subido: String(sub), drive: String(r[6]) };
   }).filter(function (g) { return g.id && /^\d{4}-\d{2}$/.test(g.mes); });
 }
 
@@ -190,8 +201,10 @@ function subirMensual_(b) {
   var nombre = String(b.nombre || ('Grilla mensual ' + b.mes + '.pdf')).slice(0, 200);
   var archivo = carpeta_().createFile(Utilities.newBlob(bytes, 'application/pdf', nombre));
   var id = 'm' + new Date().getTime().toString(36);
-  hojaMen_().appendRow([id, String(b.mes), String(b.titulo || '').slice(0, 200), nombre, bytes.length,
-    new Date().toISOString(), archivo.getId()]);
+  // Se escribe como texto (no appendRow) para que el mes no se convierta en fecha.
+  var sh = hojaMen_(), fila = sh.getLastRow() + 1;
+  sh.getRange(fila, 1, 1, COL_MEN.length).setNumberFormat('@').setValues([[id, String(b.mes),
+    String(b.titulo || '').slice(0, 200), nombre, String(bytes.length), new Date().toISOString(), archivo.getId()]]);
   return { ok: true, mensuales: leerMensuales_() };
 }
 
