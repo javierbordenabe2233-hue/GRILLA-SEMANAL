@@ -8,6 +8,9 @@ en tu Google Drive, así que todo lo que se sube queda guardado y lo ve cualquie
 - **Buscar**: escribís un apellido y ves cada día: sector, horario y con quién te toca.
 - **Grilla**: la semana completa y el botón para descargar el PDF.
 - **Mensuales**: los PDF de cada mes. Cualquiera puede ver, descargar, subir y borrar.
+  Botón **Planillas de entrada y salida**: elegís el viernes de cambio y arma la planilla
+  (A4: SALIDA arriba, ENTRADA abajo) con los nombres y legajos tomados de las grillas mensuales.
+  La lista de personal y legajos se edita desde ahí y se guarda en la planilla.
 - **Cargar**: nueva semana, editar, intercambios de los viernes. Acceso libre, sin clave.
 
 ## Puesta en marcha (una sola vez)

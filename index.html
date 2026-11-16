@@ -115,6 +115,10 @@ td.adjc{background:var(--warn-bg)}
 .sw-list{display:flex;flex-direction:column;gap:6px}
 .sw-it{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--warn-bg);color:var(--ink);border-radius:8px;padding:8px 12px}
 .swc{background:var(--warn-bg)}
+.pl-list{display:flex;flex-direction:column;gap:4px}
+.pl-it{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 4px 4px 10px;font-size:.95rem}
+.pers{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.pers td input{min-height:38px;padding:6px 8px}
 @media (max-width:520px){.swap-ico{display:none}.swap .btn{width:100%}}
 form.lock{max-width:440px;width:100%;margin:0 auto}
 .lock h2{font-family:var(--f-display);font-size:1.4rem;text-transform:uppercase;letter-spacing:.04em;margin:0}
@@ -579,7 +583,9 @@ function mesDeNombre(n){
 function viewMensuales(){
   var M=S.men, list=mensuales(), out='';
   if(M.msg) out+='<div class="alert '+M.msg.kind+'">'+esc(M.msg.text)+'</div>';
-  if(unlocked()&&!M.open) out+='<div class="actions"><button class="btn primary" type="button" id="b-men-open">+ Subir grilla mensual</button></div>';
+  var bts=(unlocked()&&!M.open?'<button class="btn primary" type="button" id="b-men-open">+ Subir grilla mensual</button>':'')+(!S.pl.open?'<button class="btn" type="button" id="b-pl-open">Planillas de entrada y salida</button>':'');
+  if(bts) out+='<div class="actions">'+bts+'</div>';
+  if(S.pl.open) out+=viewPlanillas();
   if(unlocked()&&M.open){
     out+='<form class="panel" id="f-men" autocomplete="off"><h3 class="sec" style="margin:0">Subir grilla mensual</h3>'+
       '<label class="drop" for="men-file"><input type="file" id="men-file" accept="application/pdf,.pdf" hidden>'+
@@ -697,6 +703,246 @@ function borrarMensual(id){
 }
 /* Junta todos los datos de la página (semanas, clave, mensuales) con los cambios. */
 function datos(cambios){var o={semanas:DATA.semanas,clave:DATA.clave,mensuales:DATA.mensuales||[]};for(var k in cambios)o[k]=cambios[k];return o;}
+
+/* ---------- Planillas de entrada y salida de personal ----------
+   Toma las semanas de las grillas mensuales (PDF): el viernes elegido salen
+   los de la semana que termina ese día y entran los de la que empieza.
+   Nombres completos y legajos salen de la lista de personal (editable). */
+var PERSONAL_BASE=[
+ {n:'ALDALLA, Ornela',l:'64099',a:['ALDALLA']},
+ {n:'ALVAREZ, Neri',l:'62033',a:['ALVAREZ N']},
+ {n:'ALVAREZ MOLINA, Martina',l:'64169',a:['ALVAREZ M']},
+ {n:'ARGUELLO, Leandro',l:'41100',a:['ARGUELLO']},
+ {n:'ARIAS, Antonio',l:'62001',a:['ARIAS']},
+ {n:'ARROYO, Verónica',l:'40125',a:['ARROYO']},
+ {n:'BARRIA AGUILA M. Laura',l:'61975',a:['BARRIA']},
+ {n:'BORDENABE, Javier',l:'62031',a:['BORDENABE']},
+ {n:'CHELI, Mario',l:'61755',a:['CHELI']},
+ {n:'CORONEL, Pablo',l:'62032',a:['CORONEL']},
+ {n:'DIRASSAR, Alejo',l:'64302',a:['DIRASSAR']},
+ {n:'FENOGLIO DETTLER, Bruno',l:'61997',a:['FENOGLIO']},
+ {n:'FULGENZI, Bernardo',l:'61974',a:['FULGENZI']},
+ {n:'GIMENEZ ESCURRA, Adriana',l:'62700',a:['GIMENEZ']},
+ {n:'GRANJA, Nestor',l:'40149',a:['GRANJA']},
+ {n:'JEREZ BLANCO, Emilio',l:'61795',a:['JEREZ','JEREZ B']},
+ {n:'JEREZ, Tatiana',l:'64196',a:['JEREZ T']},
+ {n:'LEDESMA, Guadalupe',l:'30025',a:['LEDESMA']},
+ {n:'LOBOS HERNANDEZ, Cristian',l:'64109',a:['LOBOS']},
+ {n:'MANSILLA SALDIVIA, Félix',l:'62021',a:['MANSILLA']},
+ {n:'MEDINA, Marina',l:'64143',a:['MEDINA']},
+ {n:'MORALES, M. Alejandra',l:'60540',a:['MORALES']},
+ {n:'NOAILLES, Pablo',l:'4874',a:['NOAILLES']},
+ {n:'ORSI, Ayelen',l:'41159',a:['ORSI']},
+ {n:'PAGNONI, Gaspar',l:'64112',a:['PAGNONI']},
+ {n:'REGINA, Emanuel',l:'61358',a:['REGINA']},
+ {n:'RIVERA, Johana',l:'60638',a:['RIVERA']},
+ {n:'SANTILLAN, Silvia',l:'62407',a:['SANTILLAN']},
+ {n:'SOLIS, Jorge',l:'40496',a:['SOLIS']},
+ {n:'TERCERO, Marcelo',l:'30123',a:['TERCERO']},
+ {n:'VALLEJOS, José',l:'61999',a:['VALLEJOS']}
+];
+var DIAS_SEM=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+S.pl={open:false,loading:false,err:'',fechas:[],fecha:'',nro:'',oficina:'SAN SEBASTIAN',hora:'13:00',listas:{},pers:null,persMsg:null};
+var SEM_MEN=null, SEM_MEN_KEY='';
+function personal(){return Array.isArray(DATA.personal)&&DATA.personal.length?DATA.personal:PERSONAL_BASE;}
+function clave(s){return norm(s).replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();}
+function buscarPersona(corto){
+  var k=clave(corto), lista=personal(), i, j;
+  for(i=0;i<lista.length;i++) for(j=0;j<(lista[i].a||[]).length;j++) if(clave(lista[i].a[j])===k) return lista[i];
+  var c=lista.filter(function(p){return clave(p.n).indexOf(k)===0;});
+  return c.length===1?c[0]:null;
+}
+function entradaDe(corto){var p=buscarPersona(corto);return p?{n:p.n,l:p.l}:{n:clave(corto),l:'',miss:true};}
+
+/* --- lectura del PDF mensual --- */
+function leerMensual(g){
+  return Promise.all([cargarPdfjs(),bajarBytes(g)]).then(function(r){
+    return r[0].getDocument({data:new Uint8Array(r[1])}).promise;
+  }).then(function(pdf){return pdf.getPage(1);}).then(function(pg){return pg.getTextContent();}).then(function(tc){
+    var it=tc.items.filter(function(i){return i.str&&i.str.trim();}).map(function(i){return {s:i.str.trim(),x:i.transform[4],y:i.transform[5],w:i.width};});
+    return semanasDeItems(it,g.mes);
+  });
+}
+function semanasDeItems(it,mes){
+  var by=+mes.slice(0,4), bm=+mes.slice(5,7);
+  function fecha(d,m){var y=by;if(m-bm>6)y--;if(bm-m>6)y++;return y+'-'+p2(m)+'-'+p2(d);}
+  it.sort(function(a,b){return b.y-a.y||a.x-b.x;});
+  var lines=[], cur=null;
+  it.forEach(function(i){if(!cur||Math.abs(cur.y-i.y)>3){cur={y:i.y,it:[]};lines.push(cur);}cur.it.push(i);});
+  var RX=/(\d{1,2})\s*-\s*(\d{1,2})\s*AL\s*(\d{1,2})\s*-\s*(\d{1,2})/gi, cols=null, sec=null, out=[];
+  for(var li=0;li<lines.length;li++){
+    var L=lines[li], txt=L.it.map(function(i){return i.s;}).join(' ').toUpperCase();
+    if(cols&&txt.indexOf('BELLA VISTA')>=0) break;
+    if(/^INSPECTORES\b/.test(txt)){sec='insp';continue;}
+    if(/^SUPERVISORES\b/.test(txt)){sec='sup';continue;}
+    if(/^JEFES?\b/.test(txt)){sec='jefe';continue;}
+    if(!cols){
+      var cs=[];
+      L.it.forEach(function(i){var m, n=0;RX.lastIndex=0;var all=[];while((m=RX.exec(i.s)))all.push(m);
+        all.forEach(function(m,k){cs.push({cx:i.x+i.w*(k+0.5)/all.length,desde:fecha(+m[1],+m[2]),hasta:fecha(+m[3],+m[4]),insp:[],sup:[],jefe:[]});});});
+      if(cs.length){cols=cs;}
+      continue;
+    }
+    if(!sec||!/^\d{1,2}$/.test(L.it[0].s)) continue;
+    var sp=cols.length>1?(cols[1].cx-cols[0].cx):200, porCol={};
+    L.it.slice(1).forEach(function(i){
+      var cx=i.x+i.w/2, best=-1, bd=1e9;
+      cols.forEach(function(c,k){var d=Math.abs(c.cx-cx);if(d<bd){bd=d;best=k;}});
+      if(best>=0&&bd<sp*0.6){porCol[best]=(porCol[best]?porCol[best]+' ':'')+i.s;}
+    });
+    Object.keys(porCol).forEach(function(k){cols[k][sec].push(porCol[k]);});
+  }
+  return (cols||[]).filter(function(c){return c.insp.length||c.sup.length||c.jefe.length;});
+}
+function cargarSemanasMen(){
+  var gs=(DATA.mensuales||[]).slice().sort(function(a,b){return String(a.subido).localeCompare(String(b.subido));});
+  var key=gs.map(function(g){return g.asset;}).join(',');
+  if(SEM_MEN&&SEM_MEN_KEY===key) return Promise.resolve(SEM_MEN);
+  return Promise.all(gs.map(function(g){return leerMensual(g).catch(function(){return [];});})).then(function(rs){
+    var map={};
+    rs.forEach(function(cols){cols.forEach(function(c){map[c.desde+'|'+c.hasta]=c;});});
+    SEM_MEN=Object.keys(map).map(function(k){return map[k];}).sort(function(a,b){return a.desde.localeCompare(b.desde);});
+    SEM_MEN_KEY=key; return SEM_MEN;
+  });
+}
+function fechasCambio(sems){
+  var f={};sems.forEach(function(s){f[s.desde]=1;f[s.hasta]=1;});
+  return Object.keys(f).sort();
+}
+function listasDe(fecha){
+  var sal=null, ent=null;
+  (SEM_MEN||[]).forEach(function(s){if(s.hasta===fecha)sal=s;if(s.desde===fecha)ent=s;});
+  function arma(s){if(!s)return null;var r=[];['jefe','sup','insp'].forEach(function(k){s[k].forEach(function(c){r.push(entradaDe(c));});});return {sem:s,gente:r};}
+  return {salida:arma(sal),entrada:arma(ent)};
+}
+function fechaLarga(f){var d=fromIso(f);return DIAS_SEM[d.getDay()]+' '+ddmm(d)+'/'+d.getFullYear();}
+function semTxt(s){return ddmm(fromIso(s.desde))+' al '+ddmm(fromIso(s.hasta));}
+function abrirPlanillas(){
+  var P=S.pl; P.open=true;P.err='';
+  if(!(DATA.mensuales||[]).length){P.err='Primero subí al menos una grilla mensual.';render();return;}
+  P.loading=true;render();
+  cargarSemanasMen().then(function(sems){
+    P.loading=false;
+    P.fechas=fechasCambio(sems);
+    if(!P.fechas.length){P.err='No pude leer las semanas de las grillas mensuales. ¿El PDF tiene el formato de siempre (columnas "06-11 AL 13-11")?';render();return;}
+    if(!P.fecha||P.fechas.indexOf(P.fecha)<0){var hoy=todayIso();P.fecha=P.fechas.filter(function(f){return f>=hoy;})[0]||P.fechas[P.fechas.length-1];}
+    render();
+  },function(e){P.loading=false;P.err=(e&&e.message)||'No pude leer las grillas mensuales.';render();});
+}
+function listasActuales(){
+  var P=S.pl;
+  if(!P.listas[P.fecha]){var d=listasDe(P.fecha);P.listas[P.fecha]={salida:d.salida?d.salida.gente:[],entrada:d.entrada?d.entrada.gente:[],semS:d.salida&&d.salida.sem,semE:d.entrada&&d.entrada.sem};}
+  return P.listas[P.fecha];
+}
+function viewPlanillas(){
+  var P=S.pl, out='<div class="panel" id="pl-panel"><h3 class="sec" style="margin:0">Planillas de entrada y salida</h3>';
+  if(P.loading) return out+'<p class="note">Leyendo las grillas mensuales…</p></div>';
+  if(P.err) return out+'<div class="alert err">'+esc(P.err)+'</div><div class="actions"><button class="btn" type="button" id="b-pl-close">Cerrar</button></div></div>';
+  var L=listasActuales();
+  out+='<div class="row"><div class="field" style="flex:2 1 240px"><label class="lbl" for="pl-fecha">Viernes de cambio</label><select id="pl-fecha">'+
+    P.fechas.map(function(f){return '<option value="'+f+'"'+(f===P.fecha?' selected':'')+'>'+esc(fechaLarga(f))+'</option>';}).join('')+'</select></div>'+
+    '<div class="field"><label class="lbl" for="pl-nro">Planilla N°</label><input type="text" id="pl-nro" value="'+esc(P.nro)+'" placeholder="Opcional"></div></div>'+
+    '<div class="row"><div class="field"><label class="lbl" for="pl-of">Oficina</label><input type="text" id="pl-of" value="'+esc(P.oficina)+'"></div>'+
+    '<div class="field"><label class="lbl" for="pl-hora">Hora</label><input type="text" id="pl-hora" value="'+esc(P.hora)+'"></div></div>';
+  var faltan=[];
+  function lado(k,titulo,sem,nota){
+    var g=L[k], h='<div class="col"><h4>'+titulo+'<span>'+(sem?'Semana '+esc(semTxt(sem)):esc(nota))+' · '+g.length+' persona'+(g.length===1?'':'s')+'</span></h4><div class="pl-list">';
+    g.forEach(function(p,i){if(p.miss)faltan.push(p.n);
+      h+='<div class="pl-it"><span>'+esc(p.n)+' <span class="'+(p.miss?'adj-tag':'muted')+'">'+(p.miss?'sin legajo':esc(p.l))+'</span></span><button class="btn small" type="button" data-pl-del="'+k+':'+i+'" aria-label="Quitar '+esc(p.n)+'">Quitar</button></div>';});
+    if(g.length>=17) h+='<p class="note">La planilla tiene 17 renglones.</p>';
+    h+='</div><select data-pl-add="'+k+'" aria-label="Agregar a '+titulo+'"><option value="">+ Agregar persona…</option>'+
+      personal().map(function(p,i){return '<option value="'+i+'">'+esc(p.n)+'</option>';}).join('')+'</select></div>';
+    return h;
+  }
+  out+='<div class="cols">'+lado('salida','Salida',L.semS,'No hay semana que termine este día')+lado('entrada','Entrada',L.semE,'Falta la grilla mensual con la semana que empieza este día')+'</div>';
+  if(faltan.length) out+='<div class="alert warn">No encontré el legajo de: '+esc(faltan.join(', '))+'. Agregalos en <b>Personal y legajos</b> o quedan sin número.</div>';
+  out+='<div class="actions"><button class="btn primary" type="button" id="b-pl-dl"'+(L.salida.length||L.entrada.length?'':' disabled')+'>Descargar planillas (PDF)</button>'+
+    '<button class="btn" type="button" id="b-pers">'+(P.pers?'Cerrar personal':'Personal y legajos')+'</button>'+
+    '<button class="btn" type="button" id="b-pl-reset">Volver a la grilla</button>'+
+    '<button class="btn" type="button" id="b-pl-close">Cerrar</button></div>';
+  if(P.pers) out+=viewPersonal();
+  return out+'</div>';
+}
+function viewPersonal(){
+  var P=S.pl, out='<div class="pers"><h3 class="sec" style="margin:0">Personal y legajos</h3>'+
+    '<p class="note">En “Cómo figura en la grilla” va el apellido tal como aparece en la grilla mensual (si hay dos con el mismo apellido, con la inicial: “JEREZ T”). Separá con coma si figura de varias formas.</p>';
+  if(P.persMsg) out+='<div class="alert '+P.persMsg.kind+'">'+esc(P.persMsg.text)+'</div>';
+  out+='<div class="tbl-wrap"><table><thead><tr><th>Apellido y nombre</th><th>Legajo</th><th>Cómo figura en la grilla</th><th></th></tr></thead><tbody>'+
+    P.pers.map(function(p,i){return '<tr><td><input type="text" data-pers="'+i+'" data-f="n" value="'+esc(p.n)+'" aria-label="Apellido y nombre"></td>'+
+      '<td><input type="text" data-pers="'+i+'" data-f="l" value="'+esc(p.l)+'" inputmode="numeric" aria-label="Legajo" style="min-width:80px"></td>'+
+      '<td><input type="text" data-pers="'+i+'" data-f="a" value="'+esc((p.a||[]).join(', '))+'" aria-label="Cómo figura en la grilla"></td>'+
+      '<td><button class="btn small" type="button" data-pers-del="'+i+'">Quitar</button></td></tr>';}).join('')+
+    '</tbody></table></div><div class="actions"><button class="btn" type="button" id="b-pers-add">+ Agregar persona</button>'+
+    '<button class="btn primary" type="button" id="b-pers-save"'+(S.saving?' disabled':'')+'>Guardar personal</button></div></div>';
+  return out;
+}
+function guardarPersonal(){
+  var lista=S.pl.pers.map(function(p){return {n:String(p.n||'').trim(),l:String(p.l||'').trim(),
+    a:(Array.isArray(p.a)?p.a:String(p.a||'').split(',')).map(function(x){return String(x).trim().toUpperCase();}).filter(Boolean)};}).filter(function(p){return p.n;});
+  lista.forEach(function(p){if(!p.a.length)p.a=[clave(p.n.split(',')[0]).split(' ')[0]];});
+  lista.sort(function(a,b){return a.n.localeCompare(b.n,'es');});
+  S.pl.persMsg={kind:'ok',text:'Guardando…'};S.saving=true;render();
+  api({accion:'personal',h:S.okHash,personal:lista}).then(function(r){
+    S.saving=false;
+    if(!r||!r.ok){S.pl.persMsg={kind:'err',text:r&&r.error==='accion'?'Falta actualizar el Code.gs en la planilla (Extensiones → Apps Script) para poder guardar el personal.':'No se pudo guardar ('+((r&&r.error)||'error')+').'};render();return;}
+    DATA.personal=r.personal||lista;guardarCache();S.pl.listas={};S.pl.pers=null;
+    S.pl.persMsg=null;S.men.msg={kind:'ok',text:'Personal guardado ('+DATA.personal.length+' personas).'};render();
+  },function(){S.saving=false;S.pl.persMsg={kind:'err',text:'Sin conexión: no se pudo guardar el personal.'};render();});
+}
+
+/* --- PDF de las planillas (A4 vertical: SALIDA arriba, ENTRADA abajo) --- */
+function pdfPlanillas(jsPDF){
+  var P=S.pl, L=listasActuales(), d=fromIso(P.fecha);
+  var doc=new jsPDF({orientation:'portrait',unit:'pt',format:'a4'});
+  var M=28, W=[60,60,20,52,170,62,115], X=[M]; /* A, B, C(n°), D hora, E nombre, F legajo, G firma */W.forEach(function(w,i){X.push(X[i]+w);});
+  var RH=18.5, N=17;
+  function linea(x1,y1,x2,y2,g){doc.setLineWidth(g||0.6);doc.line(x1,y1,x2,y2);}
+  function caja(x,y,w,h,g){doc.setLineWidth(g||0.6);doc.rect(x,y,w,h,'S');}
+  function txt(s,x,y,o){o=o||{};doc.setFont('helvetica',o.b?'bold':'normal');doc.setFontSize(o.s||9);doc.text(String(s),x,y,{align:o.a||'center'});}
+  function bloque(y0,titulo,gente){
+    doc.setDrawColor(0,0,0);doc.setTextColor(0,0,0);
+    /* encabezado: nombre a la izquierda, título en recuadro */
+    txt('Migraciones',X[0]+4,y0+29,{b:true,s:18,a:'left'});
+    caja(X[3],y0,X[7]-X[3],38,1.2);
+    txt(titulo,(X[3]+X[7])/2,y0+28,{s:26});
+    var yh=y0+38;
+    /* fila de títulos de columna */
+    caja(X[3],yh,X[7]-X[3],16,1);
+    [[3,'HORA'],[4,'APELLIDO Y NOMBRE'],[5,'LEGAJO'],[6,'FIRMA']].forEach(function(c){txt(c[1],(X[c[0]]+X[c[0]+1])/2,yh+11.5,{s:8});if(c[0]>3)linea(X[c[0]],yh,X[c[0]],yh+16,1);});
+    var y1=yh+16;
+    /* renglones */
+    for(var r=0;r<N;r++){
+      var y=y1+r*RH, p=gente[r];
+      txt(String(r+1),X[3]-3,y+RH-5,{s:8,a:'right'});
+      txt(P.hora||'',(X[3]+X[4])/2,y+RH-5.5,{s:9});
+      if(p){txt(p.n,(X[4]+X[5])/2,y+RH-5.5,{s:p.n.length>26?8:9});txt(p.l||'',(X[5]+X[6])/2,y+RH-5.5,{s:9});}
+    }
+    caja(X[2],y1,X[7]-X[2],N*RH,1.2);
+    for(r=1;r<N;r++) linea(X[2],y1+r*RH,X[7],y1+r*RH,0.6);
+    [3,4,5,6].forEach(function(c){linea(X[c],y1,X[c],y1+N*RH,c===6?0.6:0.6);});
+    /* datos de la planilla (columna izquierda) */
+    var info=[['PLANILLA NRO: '+(P.nro||''),'left'],['AÑO '+d.getFullYear()],['MES: '+MESES[d.getMonth()].toUpperCase()],['DIA: '+d.getDate()],['OFICINA:'],[String(P.oficina||'').toUpperCase()]];
+    info.forEach(function(it,i){
+      var y=y1+i*RH; caja(X[0],y,W[0]+W[1]-2,RH,1.1);
+      txt(it[0],it[1]==='left'?X[0]+4:X[0]+(W[0]+W[1]-2)/2,y+RH-5.5,{s:8.5,a:it[1]||'center'});
+    });
+    return y1+N*RH;
+  }
+  var yS=bloque(M,'SALIDA',L.salida);
+  bloque(yS+34,'ENTRADA',L.entrada);
+  return doc;
+}
+function descargarPlanillas(){
+  var name='Planillas entrada y salida '+ddmm(fromIso(S.pl.fecha),'-')+'-'+S.pl.fecha.slice(0,4)+'.pdf';
+  function entregar(jsPDF){
+    var blob;
+    try{blob=pdfPlanillas(jsPDF).output('blob');}catch(e){S.pl.err='No se pudo armar el PDF ('+(e&&e.message||'error')+').';render();return;}
+    if(DL){DL.save({filename:name,data:blob}).catch(function(e){var c=e&&e.code;if(c==='declined')return;S.men.msg={kind:'err',text:'No se pudo descargar ('+(c||'error')+').'};render();});}
+    else{var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},5000);}
+  }
+  if(window.jspdf&&window.jspdf.jsPDF) return entregar(window.jspdf.jsPDF);
+  cargarJsPdf().then(entregar,function(e){S.men.msg={kind:'err',text:e.message};render();});
+}
 
 /* ---------- vistas ---------- */
 function weekSelect(){
@@ -987,7 +1233,7 @@ function saveForm(){
 var app=document.getElementById('app');
 app.addEventListener('click',function(e){
   var b=e.target.closest('button'); if(!b) return;
-  if(b.dataset.tab){if(b.dataset.tab!==S.tab&&!S.men.busy){S.men.open=false;S.men.file=null;S.men.fileErr='';}S.tab=b.dataset.tab;S.msg=null;S.men.msg=null;S.men.confirm=null;LOCK.err='';LOCK.mode=null;render();return;}
+  if(b.dataset.tab){if(b.dataset.tab!==S.tab&&!S.men.busy){S.men.open=false;S.men.file=null;S.men.fileErr='';S.pl.open=false;S.pl.pers=null;}S.tab=b.dataset.tab;S.msg=null;S.men.msg=null;S.men.confirm=null;LOCK.err='';LOCK.mode=null;render();return;}
   if(b.id==='b-inst-open'){INST.open=true;pintarInstall();window.scrollTo({top:0,behavior:'smooth'});return;}
   if(b.id==='b-inst-no'){INST.open=false;INST.hide=true;try{localStorage.setItem('grillas-inst','no');}catch(x){}pintarInstall();return;}
   if(b.id==='b-inst'){var ev=INST.ev;if(!ev)return;ev.prompt();ev.userChoice.then(function(c){INST.ev=null;if(c&&c.outcome==='accepted')INST.done=true;render();}).catch(function(){});return;}
@@ -996,6 +1242,15 @@ app.addEventListener('click',function(e){
   if(b.id==='b-chg'){LOCK.mode=LOCK.mode==='change'?null:'change';LOCK.err='';render();return;}
   if(b.dataset.pdf){descargarPdf(b.dataset.pdf);return;}
   if(b.id==='b-men-up'){e.preventDefault();subirMensual();return;}
+  if(b.id==='b-pl-open'){abrirPlanillas();return;}
+  if(b.id==='b-pl-close'){S.pl.open=false;S.pl.pers=null;render();return;}
+  if(b.id==='b-pl-dl'){descargarPlanillas();return;}
+  if(b.id==='b-pl-reset'){delete S.pl.listas[S.pl.fecha];render();return;}
+  if(b.dataset.plDel){var q=b.dataset.plDel.split(':');listasActuales()[q[0]].splice(+q[1],1);render();return;}
+  if(b.id==='b-pers'){S.pl.pers=S.pl.pers?null:personal().map(function(p){return {n:p.n,l:p.l,a:(p.a||[]).slice()};});S.pl.persMsg=null;render();return;}
+  if(b.id==='b-pers-add'){S.pl.pers.push({n:'',l:'',a:[]});render();var ins=document.querySelectorAll('[data-pers][data-f="n"]');if(ins.length)ins[ins.length-1].focus();return;}
+  if(b.dataset.persDel!=null){S.pl.pers.splice(+b.dataset.persDel,1);render();return;}
+  if(b.id==='b-pers-save'){guardarPersonal();return;}
   if(b.id==='b-men-open'){S.men.open=true;S.men.msg=null;render();var fm=document.getElementById('f-men');if(fm)fm.scrollIntoView({block:'nearest'});return;}
   if(b.id==='b-men-close'){S.men.open=false;S.men.file=null;S.men.fileErr='';S.men.titulo='';render();return;}
   if(b.id==='b-men-clr'){S.men.file=null;S.men.fileErr='';render();return;}
@@ -1070,11 +1325,17 @@ app.addEventListener('input',function(e){
   if(el.id==='q'){S.q=el.value;try{localStorage.setItem('grillas-q',S.q);}catch(x){}
     var w=getWeek(S.weekId)||getWeek(defaultWeek());var r=document.getElementById('results');if(r&&w)r.innerHTML=resultsHtml(w);return;}
   if(el.id==='men-tit'){S.men.titulo=el.value;return;}
+  if(el.id==='pl-nro'){S.pl.nro=el.value;return;}
+  if(el.id==='pl-of'){S.pl.oficina=el.value;return;}
+  if(el.id==='pl-hora'){S.pl.hora=el.value;return;}
+  if(el.dataset.pers!=null){var pr=S.pl.pers[+el.dataset.pers];if(pr)pr[el.dataset.f]=el.dataset.f==='a'?el.value.split(','):el.value;return;}
   if(el.dataset.role){S.form[el.dataset.role][(+el.dataset.k)-1]=el.value;renderPreview();return;}
 });
 app.addEventListener('change',function(e){
   var el=e.target;
   if(el.id==='men-file'){elegirArchivo(el.files&&el.files[0]);return;}
+  if(el.id==='pl-fecha'){S.pl.fecha=el.value;render();return;}
+  if(el.dataset.plAdd){var pi=personal()[+el.value];if(pi){var ls=listasActuales()[el.dataset.plAdd];if(ls.length<17)ls.push({n:pi.n,l:pi.l});}render();return;}
   if(el.id==='men-mes'){S.men.mes=el.value;return;}
   if(el.id==='sel-week'){S.weekId=el.value;render();var q=document.getElementById('q');if(q&&S.tab==='buscar'){}return;}
   if(el.name==='tipo'){S.form.tipo=el.value;S.form.ajustes={};S.form.cambios=[];S.form.sel={};render();return;}
@@ -1091,12 +1352,12 @@ function cargar(){
   if(!apiLista()) return;
   fetch(API_URL+'?t='+Date.now()).then(function(r){if(!r.ok)throw new Error('respuesta '+r.status);return r.text();}).then(function(tx){try{return JSON.parse(tx);}catch(e){throw new Error('la URL no devuelve datos (¿acceso Cualquier usuario?)');}}).then(function(d){
     if(!d||!Array.isArray(d.semanas)) throw new Error('formato');
-    DATA={semanas:d.semanas,clave:d.clave||null,planillas:d.planillas||{},mensuales:Array.isArray(d.mensuales)?d.mensuales:[]};guardarCache();
+    DATA={semanas:d.semanas,clave:d.clave||null,planillas:d.planillas||{},mensuales:Array.isArray(d.mensuales)?d.mensuales:[],personal:Array.isArray(d.personal)?d.personal:null};guardarCache();
     S.offline=false;
     if(!getWeek(S.weekId)) S.weekId=defaultWeek();
     var a=document.activeElement, typing=a&&(a.tagName==='INPUT'||a.tagName==='SELECT')&&a.type!=='button';
     if(S.men.busy||S.saving) return;
-    if(!typing&&!(S.tab==='mensuales'&&S.men.open)) render();
+    if(!typing&&!(S.tab==='mensuales'&&(S.men.open||S.pl.pers))) render();
     else if(S.tab==='buscar'){var w=getWeek(S.weekId);var res=document.getElementById('results');if(res&&w)res.innerHTML=resultsHtml(w);}
   }).catch(function(e){S.offline=true;S.lastErr=(e&&e.message)||'';render();});
 }

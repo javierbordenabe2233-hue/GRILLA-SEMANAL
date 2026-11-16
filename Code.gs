@@ -50,7 +50,8 @@ function doGet(e) {
     semanas: leerSemanas_(),
     clave: { salt: PropertiesService.getScriptProperties().getProperty('SALT') },
     planillas: PLANILLAS,
-    mensuales: leerMensuales_()
+    mensuales: leerMensuales_(),
+    personal: leerPersonal_()
   });
 }
 
@@ -75,6 +76,7 @@ function doPost(e) {
 
     if (b.accion === 'subirMensual') return salida_(subirMensual_(b));
     if (b.accion === 'borrarMensual') return salida_(borrarMensual_(String(b.id || '')));
+    if (b.accion === 'personal') return salida_(guardarPersonal_(b.personal));
 
     if (b.accion === 'clave') {
       if (!/^[0-9a-f]{32}$/.test(b.salt) || !/^[0-9a-f]{64}$/.test(b.nuevo)) return salida_({ ok: false, error: 'datos' });
@@ -87,6 +89,21 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/* ---------- personal y legajos (para las planillas de entrada y salida) ---------- */
+function leerPersonal_() {
+  try { var v = JSON.parse(PropertiesService.getScriptProperties().getProperty('PERSONAL') || 'null'); return Array.isArray(v) ? v : null; }
+  catch (e) { return null; }
+}
+function guardarPersonal_(lista) {
+  if (!Array.isArray(lista) || lista.length > 300) return { ok: false, error: 'datos' };
+  var limpia = lista.map(function (p) {
+    return { n: String(p && p.n || '').slice(0, 80), l: String(p && p.l || '').slice(0, 20),
+      a: (Array.isArray(p && p.a) ? p.a : []).map(function (x) { return String(x).slice(0, 40); }).slice(0, 6) };
+  }).filter(function (p) { return p.n; });
+  PropertiesService.getScriptProperties().setProperty('PERSONAL', JSON.stringify(limpia));
+  return { ok: true, personal: limpia };
 }
 
 /* ---------- auxiliares ---------- */
