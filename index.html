@@ -242,7 +242,7 @@ var TPL=[
   ini:[{tu:1,s:'SALIDA',k:[5]},{tu:1,s:'ENTRADA',k:[4,6]},{tu:2,s:'SALIDA',k:[3]},{tu:2,s:'ENTRADA',k:[2,1]}],
   sup:supRows('07:50 A 15:00','14:50 A 22:00','07:50 A 10:30','10:20 A 13:00'),
   planilla:{insp:[],sup:[]}},
- {id:'6S',nombre:'6 Inspectores =SEI',n:6,
+ {id:'6S',nombre:'6 Inspectores OP2',n:6,
   rows:[R('SALIDA','MAÑANA','07:50 A 15:00','07:50 A 10:30',[1,5,2,4,1,5,1]),
         R('SALIDA','MAÑANA','07:50 A 15:00','07:50 A 10:30',[3,6,1,5,3,6,2]),
         R('SALIDA','TARDE','14:50 A 22:00','10:20 A 13:00',[4,2,6,3,4,2,5]),
@@ -424,7 +424,7 @@ function cargarJsPdf(){
 var PC={Y:[255,229,153],G:[147,196,125],B:[164,194,244],P:[244,204,204],O:[255,153,0],O2:[230,145,56],Y2:[241,194,50],R:[224,102,102],T:[17,85,204],W:[255,255,255]};
 /* Diferencias de color de cada hoja (índice de fila de la grilla de inspectores). */
 var HOJA={'6':{fila:{4:'O2'},vie:{4:'B'}},'6S':{fila:{4:'O2'},vie:{4:'B'}},'7':{},'7F':{vie:{4:'O'}},'7V':{fila:{2:'Y2',6:'R'},vie:{5:'B',6:'R'},colO:true},'8':{}};
-var NOMBRE_HOJA={'6':'6 INSPECTORES','6S':'6 INSPECTORES =SEI','7':'7 INSPECTORES','7F':'7 INSP. TURNO FIJO','7V':'7 INSPECTORES VERANO','8':'8 INSPECTORES'};
+var NOMBRE_HOJA={'6':'6 INSPECTORES','6S':'6 INSPECTORES OP2','7':'7 INSPECTORES','7F':'7 INSP. TURNO FIJO','7V':'7 INSPECTORES VERANO','8':'8 INSPECTORES'};
 function colorBase(s,t){if(t==='MEDIO'||t==='FIJO')return 'O';var m=t==='MAÑANA';return s==='SALIDA'?(m?'Y':'G'):(m?'B':'P');}
 function p2(n){return String(n).padStart(2,'0');}
 function ddmm(d,sep){return p2(d.getDate())+(sep||'/')+p2(d.getMonth()+1);}
