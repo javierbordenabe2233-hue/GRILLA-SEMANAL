@@ -1070,7 +1070,7 @@ function viewCargar(){
       ini.filter(function(g){return g.tu===tu;}).forEach(function(g){g.k.forEach(function(k){
         var ph=t.planilla[role][k-1]||'';
         out+='<div class="slot"><label class="lbl" for="f-'+role+'-'+k+'"><span class="chip '+g.s+'">'+g.s+'</span>Posición '+k+'</label>'+
-          '<input type="text" id="f-'+role+'-'+k+'" data-role="'+role+'" data-k="'+k+'" autocomplete="off" placeholder="'+esc(ph)+'" value="'+esc(f[role][k-1]||'')+'">'+
+          '<input type="text" id="f-'+role+'-'+k+'" data-role="'+role+'" data-k="'+k+'" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase" placeholder="'+esc(ph)+'" value="'+esc(f[role][k-1]||'')+'">'+
           '<span class="hint">'+esc(slotHint(t,role,k))+'</span></div>';
       });});
       return out+'</div>';
@@ -1271,7 +1271,7 @@ app.addEventListener('click',function(e){
   if(b.dataset.menDelOk){borrarMensual(b.dataset.menDelOk);return;}
   if(b.id==='b-pdf-x'){S.pdfId=null;render();return;}
   if(b.id==='b-save'){saveForm();return;}
-  if(b.id==='b-fill'){var t=TPL_BY[S.form.tipo];S.form.insp=t.planilla.insp.slice();S.form.sup=t.planilla.sup.slice();render();return;}
+  if(b.id==='b-fill'){var t=TPL_BY[S.form.tipo];S.form.insp=t.planilla.insp.map(clean);S.form.sup=t.planilla.sup.map(clean);render();return;}
   if(b.id==='b-clear'){S.form.insp=[];S.form.sup=[];S.form.ajustes={};S.form.cambios=[];render();return;}
   if(b.dataset.reset){var key=b.dataset.reset;delete S.form.ajustes[key];renderPreview();return;}
   if(b.dataset.swGo){var d=+b.dataset.swGo, s=(S.form.sel||{})[d]||{};
@@ -1338,7 +1338,11 @@ app.addEventListener('input',function(e){
   if(el.id==='pl-of'){S.pl.oficina=el.value;return;}
   if(el.id==='pl-hora'){S.pl.hora=el.value;return;}
   if(el.dataset.pers!=null){var pr=S.pl.pers[+el.dataset.pers];if(pr)pr[el.dataset.f]=el.dataset.f==='a'?el.value.split(','):el.value;return;}
-  if(el.dataset.role){S.form[el.dataset.role][(+el.dataset.k)-1]=el.value;renderPreview();return;}
+  if(el.dataset.role){
+    /* los nombres siempre en mayúscula, sin mover el cursor */
+    var up=el.value.toUpperCase();
+    if(up!==el.value){var s0=el.selectionStart,s1=el.selectionEnd;el.value=up;try{el.setSelectionRange(s0,s1);}catch(x){}}
+    S.form[el.dataset.role][(+el.dataset.k)-1]=up;renderPreview();return;}
 });
 app.addEventListener('change',function(e){
   var el=e.target;
