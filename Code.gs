@@ -153,7 +153,8 @@ function validarSemanas_(s) {
   return s.map(function (w) {
     if (!w || typeof w.id !== 'string' || !fecha.test(w.desde) || !fecha.test(w.hasta) ||
         !PLANILLAS.hasOwnProperty(String(w.tipo)) || !Array.isArray(w.insp) || !Array.isArray(w.sup)) throw new Error('datos');
-    return { id: w.id, tipo: String(w.tipo), desde: w.desde, hasta: w.hasta,
+    return { id: w.id, tipo: String(w.tipo), horario: (w.horario === 'verano' || w.horario === 'invierno') ? w.horario : '',
+      desde: w.desde, hasta: w.hasta,
       insp: w.insp.map(String), sup: w.sup.map(String),
       ajustes: (w.ajustes && typeof w.ajustes === 'object') ? w.ajustes : {},
       cambios: Array.isArray(w.cambios) ? w.cambios.filter(function (c) {

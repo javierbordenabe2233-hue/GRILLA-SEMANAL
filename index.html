@@ -299,10 +299,33 @@ var TPL=[
   planilla:{insp:[],sup:[]}}
 ];
 var TPL_BY={}; TPL.forEach(function(t){TPL_BY[t.id]=t;});
+/* Horario de invierno (el de 7 Inspectores) o de verano (el de 7 Inspectores verano).
+   Cada tipo conserva su rotación; solo cambian los horarios. El turno fijo no cambia. */
+var HORARIOS={
+  invierno:{M:'07:50 A 15:00',T:'14:50 A 22:00',MED:'10:50 A 18:00',v1:'07:50 A 10:30',v2:'10:20 A 13:00',sup:['07:50 A 15:00','14:50 A 22:00','07:50 A 10:30','10:20 A 13:00']},
+  verano:{M:'05:50 A 14:00',T:'13:50 A 22:00',MED:'11:00 A 19:00',v1:'05:50 A 09:30',v2:'09:20 A 13:00',sup:['05:50 A 14:00','13:50 A 22:00','06:00 A 09:30','09:30 A 13:00']}};
+function horarioNatural(tipo){return tipo==='7V'?'verano':'invierno';}
+function horarioDe(w){return (w&&(w.horario==='verano'||w.horario==='invierno'))?w.horario:horarioNatural(w&&w.tipo);}
+var TPL_H={};
+function tplDe(w){
+  var t=TPL_BY[w.tipo]; if(!t) return t;
+  var hz=horarioDe(w); if(hz===horarioNatural(w.tipo)) return t;
+  var key=t.id+'|'+hz; if(TPL_H[key]) return TPL_H[key];
+  var H=HORARIOS[hz];
+  function fila(r){
+    /* por horario de inicio: antes de las 9 = mañana, hasta las 12:30 = medio, después = tarde (el turno fijo no cambia) */
+    var ini=rng(r.h)[0], hh=r.t==='FIJO'?r.h:ini<540?H.M:ini<750?H.MED:H.T;
+    /* viernes de cierre: el turno que termina a las 13 es el segundo */
+    return R(r.s,r.t,hh,rng(r.vh)[1]>=720?H.v2:H.v1,r.d,r.vs);
+  }
+  var c={};for(var k in t)c[k]=t[k];
+  c.rows=t.rows.map(fila);c.sup=supRows(H.sup[0],H.sup[1],H.sup[2],H.sup[3]);
+  return TPL_H[key]=c;
+}
 
 /* Arma la semana: días 0 (viernes de inicio, desde las 13:00) a 7 (viernes de cierre, hasta las 13:00). */
 function assignments(w){
-  var t=TPL_BY[w.tipo], days=[], i;
+  var t=tplDe(w), days=[], i;
   for(i=0;i<8;i++) days.push([]);
   ['insp','sup'].forEach(function(role){
     var names=w[role]||[], rows=role==='insp'?t.rows:t.sup, ini=role==='insp'?t.ini:SUP_INI;
@@ -345,7 +368,7 @@ function add(d,n){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.set
 function dm(d){return d.getDate()+'/'+(d.getMonth()+1);}
 function todayIso(){return iso(new Date());}
 function nextFriday(){var d=new Date();d=new Date(d.getFullYear(),d.getMonth(),d.getDate());while(d.getDay()!==5)d=add(d,1);return d;}
-function weekLabel(w){var t=TPL_BY[w.tipo];return dm(fromIso(w.desde))+' al '+dm(fromIso(w.hasta))+' · '+(t?t.nombre:w.tipo);}
+function weekLabel(w){var t=TPL_BY[w.tipo];return dm(fromIso(w.desde))+' al '+dm(fromIso(w.hasta))+' · '+(t?t.nombre:w.tipo)+(horarioDe(w)!==horarioNatural(w.tipo)?' · '+horarioDe(w):'');}
 function roleName(r){return r==='insp'?'Inspector':'Supervisor';}
 function sorted(){return DATA.semanas.slice().sort(function(a,b){return b.desde.localeCompare(a.desde);});}
 function defaultWeek(){
@@ -401,7 +424,7 @@ function lockBar(){return '';}
 function newForm(src){
   var t=src?src.tipo:'7', d=nextFriday();
   return {editId:src?src.id:null,tipo:t,desde:src?src.desde:iso(d),hasta:src?src.hasta:iso(add(d,7)),
-    insp:src?src.insp.slice():[],sup:src?src.sup.slice():[],ajustes:src&&src.ajustes?JSON.parse(JSON.stringify(src.ajustes)):{},cambios:src&&src.cambios?JSON.parse(JSON.stringify(src.cambios)):[],sel:{}};
+    horario:src?horarioDe(src):'invierno',insp:src?src.insp.slice():[],sup:src?src.sup.slice():[],ajustes:src&&src.ajustes?JSON.parse(JSON.stringify(src.ajustes)):{},cambios:src&&src.cambios?JSON.parse(JSON.stringify(src.cambios)):[],sel:{}};
 }
 
 
@@ -433,7 +456,7 @@ function deTxt(h){var m=String(h).match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/);ret
 function cortoH(h){var m=String(h).match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/);return m?m[1]+'-'+m[2]:String(h);}
 
 function pdfGrilla(jsPDF,w){
-  var t=TPL_BY[w.tipo], hoja=HOJA[w.tipo]||{}, days=assignments(w);
+  var t=tplDe(w), hoja=HOJA[w.tipo]||{}, days=assignments(w);
   var doc=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
   var PW=doc.internal.pageSize.getWidth(), M=20;
   var PX=[90,90,90,21,90,90,103,90,90,90,90,90,90,90,93], tot=PX.reduce(function(a,b){return a+b;},0), k=(PW-2*M)/tot;
@@ -462,7 +485,7 @@ function pdfGrilla(jsPDF,w){
   doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(17,34,43);
   doc.text('GRILLA PASO SAN SEBASTIÁN',M,26);
   doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(70,80,90);
-  doc.text((NOMBRE_HOJA[w.tipo]||w.tipo)+'  ·  del viernes '+ddmm(fromIso(w.desde))+' (13:00) al viernes '+ddmm(fromIso(w.hasta))+' (13:00)',M,38);
+  doc.text((NOMBRE_HOJA[w.tipo]||w.tipo)+'  ·  HORARIO DE '+horarioDe(w).toUpperCase()+'  ·  del viernes '+ddmm(fromIso(w.desde))+' (13:00) al viernes '+ddmm(fromIso(w.hasta))+' (13:00)',M,38);
 
   var DN=['SABADO','DOMINGO','LUNES','MARTES','MIERCOLES','JUEVES','VIERNES'];
   function seccion(y,titulo,role){
@@ -1009,7 +1032,7 @@ function resultsHtml(w){
 }
 
 function gridHtml(w,hl){
-  var t=TPL_BY[w.tipo]; if(!t) return '';
+  var t=tplDe(w); if(!t) return '';
   var days=assignments(w), hq=norm(hl||'');
   function nm(n){return '<td class="nm'+(hq&&norm(n).indexOf(hq)!==-1?' hit':'')+'">'+(esc(n)||'<span class="muted">—</span>')+'</td>';}
   function head(){
@@ -1047,7 +1070,7 @@ function viewGrilla(){
   if(!DATA.semanas.length) return noWeeks();
   var w=getWeek(S.weekId)||getWeek(defaultWeek());
   return '<div class="panel"><div class="row">'+weekSelect()+'</div>'+
-    '<p class="note">'+esc(TPL_BY[w.tipo]?TPL_BY[w.tipo].nombre:'')+' · del viernes '+dm(fromIso(w.desde))+' (13:00) al viernes '+dm(fromIso(w.hasta))+' (13:00).</p></div>'+
+    '<p class="note">'+esc(TPL_BY[w.tipo]?TPL_BY[w.tipo].nombre:'')+' · horario de '+horarioDe(w)+' · del viernes '+dm(fromIso(w.desde))+' (13:00) al viernes '+dm(fromIso(w.hasta))+' (13:00).</p></div>'+
     '<div class="panel"><div class="actions">'+pdfBtn(w.id,'Descargar PDF de la grilla')+'</div>'+gridHtml(w,S.q)+'</div>';
 }
 
@@ -1059,7 +1082,7 @@ function slotHint(t,role,k){
 
 function viewCargar(){
   if(!S.form) S.form=newForm(null);
-  var f=S.form, t=TPL_BY[f.tipo];
+  var f=S.form, t=tplDe({tipo:f.tipo,horario:f.horario});
   var tipos='<div class="tipos" role="radiogroup" aria-label="Tipo de grilla">'+TPL.map(function(x){
     return '<label><input type="radio" name="tipo" value="'+x.id+'"'+(x.id===f.tipo?' checked':'')+'> '+esc(x.nombre)+'</label>';}).join('')+'</div>';
   /* Dos columnas: quienes entran el viernes en el 1er turno y quienes en el 2do. */
@@ -1084,6 +1107,8 @@ function viewCargar(){
    '<div class="field"><span class="lbl">Tipo de grilla</span>'+tipos+'</div>'+
    '<div class="row"><div class="field"><label class="lbl" for="f-desde">Desde (viernes)</label><input type="date" id="f-desde" value="'+esc(f.desde)+'"></div>'+
    '<div class="field"><label class="lbl" for="f-hasta">Hasta (viernes)</label><input type="date" id="f-hasta" value="'+esc(f.hasta)+'"></div></div>'+
+   '<div class="field"><span class="lbl">Horario</span><div class="tipos" role="radiogroup" aria-label="Horario">'+
+     [['invierno','Invierno'],['verano','Verano']].map(function(o){return '<label><input type="radio" name="horario" value="'+o[0]+'"'+(horarioDe(f)===o[0]?' checked':'')+'> '+o[1]+'</label>';}).join('')+'</div></div>'+
    '<div id="date-warn"></div>'+
    '<div class="field"><span class="lbl">Inspectores</span>'+slots('insp')+'</div>'+
    '<div class="field"><span class="lbl">Supervisores</span>'+slots('sup')+'</div>'+
@@ -1115,7 +1140,7 @@ function formWarnings(){
   if(dwEl) dwEl.innerHTML=dw.map(function(x){return '<div class="alert warn">'+esc(x)+'</div>';}).join('');
   if(fwEl) fwEl.innerHTML=out.map(function(x){return '<div class="alert warn">'+esc(x)+'</div>';}).join('');
 }
-function formWeek(noAdj){var f=S.form;return {tipo:f.tipo,desde:f.desde||iso(nextFriday()),hasta:f.hasta||iso(add(nextFriday(),7)),insp:f.insp.map(clean),sup:f.sup.map(clean),ajustes:noAdj?{}:f.ajustes,cambios:noAdj?[]:(f.cambios||[])};}
+function formWeek(noAdj){var f=S.form;return {tipo:f.tipo,horario:f.horario,desde:f.desde||iso(nextFriday()),hasta:f.hasta||iso(add(nextFriday(),7)),insp:f.insp.map(clean),sup:f.sup.map(clean),ajustes:noAdj?{}:f.ajustes,cambios:noAdj?[]:(f.cambios||[])};}
 function hParts(h){var m=String(h).match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/);return m?[m[1].padStart(5,'0'),m[2].padStart(5,'0')]:['',''];}
 function baseOf(i,role,k){var r=null;assignments(formWeek(true))[i].forEach(function(a){if(a.role===role&&a.k===k)r=a;});return r;}
 function friEditor(w,i){
@@ -1232,7 +1257,7 @@ function saveForm(){
   if(!f.desde||!f.hasta){S.msg={kind:'err',text:'Completá las fechas desde y hasta.'};render();return;}
   if(f.hasta<f.desde){S.msg={kind:'err',text:'La fecha “hasta” es anterior a “desde”.'};render();return;}
   if(miss){S.msg={kind:'err',text:'Faltan '+miss+' nombre'+(miss>1?'s':'')+'. Completá todas las posiciones.'};render();return;}
-  var w={id:f.editId||('g'+Date.now().toString(36)),tipo:f.tipo,desde:f.desde,hasta:f.hasta,insp:insp,sup:sup,ajustes:f.ajustes||{},cambios:f.cambios||[],guardado:new Date().toISOString()};
+  var w={id:f.editId||('g'+Date.now().toString(36)),tipo:f.tipo,horario:horarioDe(f),desde:f.desde,hasta:f.hasta,insp:insp,sup:sup,ajustes:f.ajustes||{},cambios:f.cambios||[],guardado:new Date().toISOString()};
   var next=datos({semanas:DATA.semanas.filter(function(x){return x.id!==w.id;}).concat([w]).sort(function(a,b){return b.desde.localeCompare(a.desde);})});
   S.weekId=w.id;S.flashPdf=true;S.pdfId=null;
   publish(next,'Grilla guardada: '+weekLabel(w)+'.');
@@ -1351,7 +1376,8 @@ app.addEventListener('change',function(e){
   if(el.dataset.plAdd){var pi=personal()[+el.value];if(pi){var ls=listasActuales()[el.dataset.plAdd];if(ls.length<17)ls.push({n:pi.n,l:pi.l});}render();return;}
   if(el.id==='men-mes'){S.men.mes=el.value;return;}
   if(el.id==='sel-week'){S.weekId=el.value;render();var q=document.getElementById('q');if(q&&S.tab==='buscar'){}return;}
-  if(el.name==='tipo'){S.form.tipo=el.value;S.form.ajustes={};S.form.cambios=[];S.form.sel={};render();return;}
+  if(el.name==='horario'){S.form.horario=el.value;render();return;}
+  if(el.name==='tipo'){if(el.value==='7V')S.form.horario='verano';else if(S.form.tipo==='7V')S.form.horario='invierno';S.form.tipo=el.value;S.form.ajustes={};S.form.cambios=[];S.form.sel={};render();return;}
   if(el.dataset.aj){onAdjChange(el.dataset.aj);return;}
   if(el.dataset.sw!=null){var d=+el.dataset.sw;S.form.sel=S.form.sel||{};var s=S.form.sel[d]=S.form.sel[d]||{};s[el.dataset.f]=el.value;s.err='';renderPreview();return;}
   if(el.id==='f-desde'){S.form.desde=el.value;if(el.value){S.form.hasta=iso(add(fromIso(el.value),7));var h=document.getElementById('f-hasta');if(h)h.value=S.form.hasta;}renderPreview();return;}
